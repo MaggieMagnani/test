@@ -1,0 +1,28 @@
+local monitor = peripheral.find("monitor")
+monitor.setTextScale(1)
+
+local cores = {
+  colors.red,
+  colors.orange,
+  colors.yellow,
+  colors.lime,
+  colors.green,
+  colors.cyan,
+  colors.blue,
+  colors.purple,
+  colors.pink,
+  colors.white
+}
+
+while true do
+  -- Tela inteira com cor aleatória
+  local cor = cores[math.random(1, #cores)]
+  monitor.setBackgroundColor(cor)
+  monitor.clear()
+  sleep(math.random(1, 5) / 10) -- 0.1 a 0.5s
+
+  -- Pisca preto rapidão
+  monitor.setBackgroundColor(colors.black)
+  monitor.clear()
+  sleep(0.05)
+end
