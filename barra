@@ -1,7 +1,23 @@
+-- Conectar monitor expandido
 local monitor = peripheral.find("monitor")
-monitor.setTextScale(1)
-local largura, altura = monitor.getSize()
+if not monitor then
+  print("Nenhum monitor encontrado!")
+  return
+end
 
+-- Configurações visuais
+monitor.setTextScale(0.5)
+monitor.setBackgroundColor(colors.black)
+monitor.clear()
+
+-- Dimensões do monitor
+local w, h = monitor.getSize()
+
+-- Número de barras e espaço entre elas
+local numBarras = 10
+local larguraBarra = math.floor(w / numBarras)
+
+-- Paleta de cores
 local cores = {
   colors.red,
   colors.orange,
@@ -11,23 +27,31 @@ local cores = {
   colors.cyan,
   colors.blue,
   colors.purple,
+  colors.pink,
   colors.white
 }
 
-while true do
-  monitor.setBackgroundColor(colors.black)
-  monitor.clear()
-  
-  for x = 1, largura do
-    local h = math.random(1, altura)
-    local cor = cores[math.random(1, #cores)]
-    monitor.setBackgroundColor(cor)
-    for y = altura, altura - h + 1, -1 do
-      monitor.setCursorPos(x, y)
-      monitor.write(" ")
+-- Função para desenhar uma barra
+local function desenharBarra(x, altura, cor)
+  for y = 1, h do
+    monitor.setCursorPos(x, h - y + 1)
+    if y <= altura then
+      monitor.setBackgroundColor(cor)
+    else
+      monitor.setBackgroundColor(colors.black)
     end
+    monitor.write(" ")
   end
+end
 
-  sleep(0.15)
+-- Loop infinito de animação
+while true do
+  for i = 0, numBarras - 1 do
+    local altura = math.random(2, h)
+    local cor = cores[math.random(#cores)]
+    local x = i * larguraBarra + 1
+    desenharBarra(x, altura, cor)
+  end
+  sleep(0.2) -- tempo entre atualizações
 end
 
