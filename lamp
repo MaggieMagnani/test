@@ -1,4 +1,4 @@
 rednet.open("back")  -- ou "left", "right", onde está o modem
 
-rednet.send(0, "Luzes ON") -- 2 é o ID do outro computador
+rednet.send(0, "Luzes OFF") -- 2 é o ID do outro computador
 print("Mensagem enviada!")
