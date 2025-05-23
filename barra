@@ -1,41 +1,33 @@
--- Conectar monitor expandido
-local monitor = peripheral.find("monitor")
-if not monitor then
-  print("Nenhum monitor encontrado!")
+-- Detectar todos os monitores conectados
+local monitores = {}
+
+for _, name in ipairs(peripheral.getNames()) do
+  if peripheral.getType(name) == "monitor" then
+    table.insert(monitores, peripheral.wrap(name))
+  end
+end
+
+if #monitores == 0 then
+  print("Nenhum monitor encontrado.")
   return
 end
 
--- Configurações visuais
-monitor.setTextScale(0.5)
-monitor.setBackgroundColor(colors.black)
-monitor.clear()
-
--- Dimensões do monitor
-local w, h = monitor.getSize()
-
--- Número de barras e espaço entre elas
-local numBarras = 10
-local larguraBarra = math.floor(w / numBarras)
-
--- Paleta de cores
+-- Cores possíveis
 local cores = {
-  colors.red,
-  colors.orange,
-  colors.yellow,
-  colors.lime,
-  colors.green,
-  colors.cyan,
-  colors.blue,
-  colors.purple,
-  colors.pink,
-  colors.white
+  colors.red, colors.orange, colors.yellow, colors.lime,
+  colors.green, colors.cyan, colors.blue, colors.purple,
+  colors.pink, colors.white
 }
 
--- Função para desenhar uma barra
-local function desenharBarra(x, altura, cor)
-  for y = 1, h do
-    monitor.setCursorPos(x, h - y + 1)
-    if y <= altura then
+-- Função para desenhar uma barra em um monitor
+local function desenharBarra(monitor)
+  local largura, altura = monitor.getSize()
+  local alturaBarra = math.random(2, altura)
+  local cor = cores[math.random(#cores)]
+
+  for y = 1, altura do
+    monitor.setCursorPos(1, altura - y + 1)
+    if y <= alturaBarra then
       monitor.setBackgroundColor(cor)
     else
       monitor.setBackgroundColor(colors.black)
@@ -44,14 +36,18 @@ local function desenharBarra(x, altura, cor)
   end
 end
 
--- Loop infinito de animação
+-- Preparar os monitores
+for _, m in ipairs(monitores) do
+  m.setTextScale(0.5)
+  m.setBackgroundColor(colors.black)
+  m.clear()
+end
+
+-- Loop principal de animação
 while true do
-  for i = 0, numBarras - 1 do
-    local altura = math.random(2, h)
-    local cor = cores[math.random(#cores)]
-    local x = i * larguraBarra + 1
-    desenharBarra(x, altura, cor)
+  for _, monitor in ipairs(monitores) do
+    desenharBarra(monitor)
   end
-  sleep(0.2) -- tempo entre atualizações
+  sleep(0.2)
 end
 
