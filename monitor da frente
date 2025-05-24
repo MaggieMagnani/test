@@ -1,0 +1,48 @@
+-- tela_balada.lua
+
+-- Encontrar e preparar o monitor
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+
+-- Cores para as barras
+local cores = {
+  colors.red, colors.orange, colors.yellow,
+  colors.green, colors.cyan, colors.blue,
+  colors.purple, colors.magenta, colors.lime
+}
+
+-- Função para desenhar uma barra em uma coluna
+local function desenhaBarra(x, altura, cor)
+  for y = 1, h do
+    mon.setCursorPos(x, y)
+    if y > h - altura then
+      mon.setBackgroundColor(cor)
+    else
+      mon.setBackgroundColor(colors.black)
+    end
+    mon.write(" ")
+  end
+end
+
+-- Loop de animação
+while true do
+  for x = 1, w do
+    local altura = math.random(1, h)
+    local cor = cores[math.random(#cores)]
+    desenhaBarra(x, altura, cor)
+  end
+  sleep(0.1)
+end
