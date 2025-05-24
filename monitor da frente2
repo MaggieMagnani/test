@@ -1,0 +1,66 @@
+-- tela_pulso.lua
+
+-- Encontrar e preparar o monitor
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+
+-- Cores para o pulso
+local cores = {
+  colors.red, colors.orange, colors.yellow,
+  colors.green, colors.cyan, colors.blue,
+  colors.purple, colors.magenta, colors.lime,
+  colors.white
+}
+
+-- Função para desenhar um "pulso"
+local function pulso()
+  local tamanho = math.random(3, 8)
+  local xCentro = math.random(tamanho, w - tamanho)
+  local yCentro = math.random(tamanho, h - tamanho)
+  local cor = cores[math.random(#cores)]
+
+  for dx = -tamanho, tamanho do
+    for dy = -tamanho, tamanho do
+      local x = xCentro + dx
+      local y = yCentro + dy
+      if x >= 1 and x <= w and y >= 1 and y <= h then
+        mon.setCursorPos(x, y)
+        mon.setBackgroundColor(cor)
+        mon.write(" ")
+      end
+    end
+  end
+
+  sleep(0.1)
+
+  -- Limpar
+  for dx = -tamanho, tamanho do
+    for dy = -tamanho, tamanho do
+      local x = xCentro + dx
+      local y = yCentro + dy
+      if x >= 1 and x <= w and y >= 1 and y <= h then
+        mon.setCursorPos(x, y)
+        mon.setBackgroundColor(colors.black)
+        mon.write(" ")
+      end
+    end
+  end
+end
+
+-- Loop principal
+while true do
+  pulso()
+end
