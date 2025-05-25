@@ -1,3 +1,39 @@
+-- Linha corrigida no updateEye()
+eye.colorIndex = (math.floor(os.epoch() / 500) % #settings.colors) + 1
+
+-- Correção no drawBaseEye para o loop discoBackground
+if eye.mode == "discoBackground" then
+    for y = -math.floor(h/2), math.floor(h/2) do
+        for x = -math.floor(w/2), math.floor(w/2) do
+            if (x*x)/(w*w/4) + (y*y)/(h*h/4) > 1 then
+                local c = settings.colors[(eye.colorIndex + x + y + math.floor(os.epoch()/200)) % #settings.colors + 1]
+                mon.setBackgroundColor(c)
+                mon.setCursorPos(centerX + x, centerY + y)
+                mon.write(" ")
+            end
+        end
+    end
+end
+Com isso, o erro que você deve estar recebendo deve sumir.
+
+Se quiser, posso enviar o código completo corrigido com essas mudanças para facilitar. Quer?
+
+
+
+
+
+
+
+Você disse:
+vc pode me mandar o codigo todo só que arrumado agora ?
+
+
+O ChatGPT disse:
+Claro! Aqui está seu código completo corrigido com as mudanças para evitar erros de sintaxe e os ajustes nos loops para usar valores inteiros nas posições do monitor:
+
+lua
+Copiar
+Editar
 -- Configuração do olho psicodélico premium
 local mon = peripheral.find("monitor")
 if not mon then
@@ -93,8 +129,8 @@ local function drawBaseEye()
     
     -- Desenhar fundo especial
     if eye.mode == "discoBackground" then
-        for y = -h/2, h/2 do
-            for x = -w/2, w/2 do
+        for y = -math.floor(h/2), math.floor(h/2) do
+            for x = -math.floor(w/2), math.floor(w/2) do
                 if (x*x)/(w*w/4) + (y*y)/(h*h/4) > 1 then
                     local c = settings.colors[(eye.colorIndex + x + y + math.floor(os.epoch()/200)) % #settings.colors + 1]
                     mon.setBackgroundColor(c)
@@ -118,7 +154,7 @@ local function drawBaseEye()
             end
             
             -- Desenhar barra
-            for h = 1, math.floor(bar.height) do
+            for hBar = 1, math.floor(bar.height) do
                 local colorIndex = (i + math.floor(os.epoch()/200)) % #settings.colors + 1
                 mon.setBackgroundColor(settings.colors[colorIndex])
                 mon.setCursorPos(centerX + x, centerY + y)
@@ -199,8 +235,8 @@ local function drawIris()
     end
     
     -- Posição do olhar
-    local lookX = eye.lookX * 10
-    local lookY = eye.lookY * 6
+    local lookX = math.floor(eye.lookX * 10)
+    local lookY = math.floor(eye.lookY * 6)
     
     -- Desenhar íris
     for y = -6, 6 do
@@ -255,7 +291,7 @@ local function drawTears()
             local tearColor = t.bright and colors.lightBlue or colors.blue
             for i = 0, t.size do
                 mon.setBackgroundColor(tearColor)
-                mon.setCursorPos(centerX + t.x, centerY + t.y + i)
+                mon.setCursorPos(centerX + t.x, centerY + math.floor(t.y) + i)
                 mon.write(" ")
             end
         end
@@ -309,6 +345,13 @@ local function updateEye()
         eye.lookX = eye.lookX * 0.7 + (math.random() * 2 - 1) * 0.3
         eye.lookY = eye.lookY * 0.7 + (math.random() * 2 - 1) * 0.3
     end
+    
+    -- Rotação de cores
+    eye.colorIndex = (math.floor(os.epoch() / 500) % #settings.colors) + 1
+    
+    -- Efeitos psicodélicos
+    eye.psychoEffect = (eye.psychoEffect + 0.05) % (math.pi * 2)
+end
 
 -- Loop principal
 while true do
