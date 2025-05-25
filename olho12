@@ -268,8 +268,6 @@ local function updateEye()
     -- Rotação de cores (CORREÇÃO: substituído // por math.floor)
     eye.colorIndex = (math.floor(os.epoch() / 500) % #settings.colors) + 1
     
-    -- Efeitos psicodélicos
-    eye.psychoEffect = (eye.psychoEffect + 0.1) % (math.pi * 2)
 end
 
 -- Loop principal
