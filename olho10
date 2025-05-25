@@ -1,0 +1,178 @@
+-- Configuração inicial do monitor
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Nenhum monitor encontrado!")
+    return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local centerX, centerY = math.floor(w / 2), math.floor(h / 2)
+
+-- Cores e configurações
+local settings = {
+    pupilColors = {
+        colors.blue, colors.green, colors.brown, 
+        colors.purple, colors.cyan, colors.magenta
+    },
+    emotions = {
+        normal = { blink = 0, redness = 0, shake = 0 },
+        angry = { blink = 0.3, redness = 1, shake = 2 },
+        sad = { blink = 0.1, redness = 0.2, shake = 0.5 },
+        scared = { blink = 0, redness = 0, shake = 3 }
+    }
+}
+
+-- Estado atual do olho
+local eyeState = {
+    emotion = "normal",
+    emotionTimer = 0,
+    blinkProgress = 0,  -- 0 a 1 (0=aberto, 1=fechado)
+    lookX = 0,          -- -1 a 1
+    lookY = 0,          -- -1 a 1
+    tearY = 0           -- Posição das lágrimas
+}
+
+-- Função para desenhar o olho
+local function drawEye()
+    mon.setBackgroundColor(colors.black)
+    mon.clear()
+
+    local shakeX = math.random(-settings.emotions[eyeState.emotion].shake, 
+                              settings.emotions[eyeState.emotion].shake)
+    local shakeY = math.random(-settings.emotions[eyeState.emotion].shake, 
+                              settings.emotions[eyeState.emotion].shake)
+
+    -- Desenhar a esclera (parte branca do olho)
+    local eyeOpen = 1 - eyeState.blinkProgress
+    local eyeWidth = math.floor(30 * eyeOpen)
+    local eyeHeight = math.floor(20 * eyeOpen)
+
+    for y = -eyeHeight, eyeHeight do
+        for x = -eyeWidth, eyeWidth do
+            -- Fórmula da elipse
+            if (x*x)/(eyeWidth*eyeWidth) + (y*y)/(eyeHeight*eyeHeight) <= 1 then
+                -- Vermelhidão baseada na emoção
+                local redness = settings.emotions[eyeState.emotion].redness
+                local color = colors.white
+                if y > eyeHeight/2 and redness > 0 then
+                    color = colors.red
+                end
+                
+                mon.setCursorPos(centerX + x + shakeX, centerY + y + shakeY)
+                mon.setBackgroundColor(color)
+                mon.write(" ")
+            end
+        end
+    end
+
+    -- Desenhar a íris (só se o olho não estiver totalmente fechado)
+    if eyeOpen > 0.3 then
+        local irisX = math.floor(eyeState.lookX * 10)
+        local irisY = math.floor(eyeState.lookY * 6)
+        local irisColor = settings.pupilColors[(os.epoch() % #settings.pupilColors) + 1]
+        
+        -- Íris
+        for y = -6, 6 do
+            for x = -8, 8 do
+                if (x*x)/64 + (y*y)/36 <= 1 then
+                    mon.setCursorPos(centerX + x + irisX + shakeX, centerY + y + irisY + shakeY)
+                    mon.setBackgroundColor(irisColor)
+                    mon.write(" ")
+                end
+            end
+        end
+        
+        -- Pupila
+        for y = -2, 2 do
+            for x = -3, 3 do
+                if (x*x)/9 + (y*y)/4 <= 1 then
+                    mon.setCursorPos(centerX + x + irisX + shakeX, centerY + y + irisY + shakeY)
+                    mon.setBackgroundColor(colors.black)
+                    mon.write(" ")
+                end
+            end
+        end
+    end
+
+    -- Efeitos especiais por emoção
+    if eyeState.emotion == "angry" then
+        -- Sobrancelhas franzidas
+        for x = -20, 20 do
+            local browY = centerY - eyeHeight - 2 + math.abs(x)/10
+            mon.setCursorPos(centerX + x + shakeX, math.floor(browY + shakeY))
+            mon.setBackgroundColor(colors.black)
+            mon.write(" ")
+        end
+    elseif eyeState.emotion == "sad" then
+        -- Sobrancelhas arqueadas
+        for x = -20, 20 do
+            local browY = centerY - eyeHeight - 4 + math.sin(x/10)*3
+            mon.setCursorPos(centerX + x + shakeX, math.floor(browY + shakeY))
+            mon.setBackgroundColor(colors.black)
+            mon.write(" ")
+        end
+        
+        -- Lágrimas
+        if eyeState.tearY < eyeHeight*2 then
+            for x = -3, 3 do
+                mon.setCursorPos(centerX + x + shakeX, centerY + eyeHeight + math.floor(eyeState.tearY) + shakeY)
+                mon.setBackgroundColor(colors.cyan)
+                mon.write(" ")
+            end
+        end
+    elseif eyeState.emotion == "scared" then
+        -- Olho mais aberto (já implementado pelo eyeOpen)
+        -- Pupila menor (já implementado)
+    end
+end
+
+-- Atualizar estado do olho
+local function updateEye(dt)
+    -- Piscar aleatoriamente
+    if math.random() < 0.02 then
+        eyeState.blinkProgress = 0.3
+    end
+    
+    -- Atualizar piscada
+    if eyeState.blinkProgress > 0 then
+        eyeState.blinkProgress = eyeState.blinkProgress - 0.1
+        if eyeState.blinkProgress < 0 then eyeState.blinkProgress = 0 end
+    end
+    
+    -- Movimento aleatório do olhar
+    if math.random() < 0.1 then
+        eyeState.lookX = math.random()*2 - 1
+        eyeState.lookY = math.random()*2 - 1
+    end
+    
+    -- Atualizar emoções
+    if eyeState.emotionTimer > 0 then
+        eyeState.emotionTimer = eyeState.emotionTimer - dt
+    else
+        -- Mudar para nova emoção
+        local emotions = {"normal", "angry", "sad", "scared"}
+        eyeState.emotion = emotions[math.random(#emotions)]
+        eyeState.emotionTimer = math.random(5, 15)
+        
+        -- Resetar lágrimas se não estiver triste
+        if eyeState.emotion ~= "sad" then
+            eyeState.tearY = 0
+        end
+    end
+    
+    -- Atualizar lágrimas se estiver triste
+    if eyeState.emotion == "sad" then
+        eyeState.tearY = eyeState.tearY + 0.5
+        if eyeState.tearY > h then
+            eyeState.tearY = 0
+        end
+    end
+end
+
+-- Loop principal
+while true do
+    updateEye(0.1)
+    drawEye()
+    sleep(0.1)
+end
