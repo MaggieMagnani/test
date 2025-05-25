@@ -1,0 +1,200 @@
+-- olho_gigante_v5.lua (bravo melhorado + tremor)
+
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local cx, cy = math.floor(w / 2), math.floor(h / 2)
+
+local cores = {
+  colors.red, colors.orange, colors.yellow,
+  colors.lime, colors.green, colors.blue,
+  colors.cyan, colors.purple, colors.pink, colors.magenta
+}
+
+local posicoes = {
+  {x = 0, y = 0}, {x = -6, y = 0}, {x = 6, y = 0},
+  {x = 0, y = -4}, {x = 0, y = 4},
+  {x = -4, y = -2}, {x = 4, y = -2},
+  {x = -4, y = 2}, {x = 4, y = 2}
+}
+
+-- Variáveis para lágrimas
+local lagrimas_colunas = {cx - 8, cx, cx + 8}
+local lagrimas_alturas = {cy + 15, cy + 16, cy + 15}
+local lagrimas_pos = {0, 0, 0}
+local lagrimas_max_altura = h - lagrimas_alturas[1]
+
+local tremendo = false
+local tremor_timer = 0
+
+local function desenharOlho(offsetX, offsetY, cor, emoc, tremorDeslocX, tremorDeslocY)
+  tremorDeslocX = tremorDeslocX or 0
+  tremorDeslocY = tremorDeslocY or 0
+
+  mon.setBackgroundColor(colors.black)
+  mon.clear()
+
+  local baseX = cx + tremorDeslocX
+  local baseY = cy + tremorDeslocY
+
+  -- Esclera
+  for y = -14, 14 do
+    for x = -26, 26 do
+      if (x * x) / 676 + (y * y) / 196 <= 1 then
+        mon.setCursorPos(baseX + x, baseY + y)
+        mon.setBackgroundColor(colors.white)
+        mon.write(" ")
+      end
+    end
+  end
+
+  -- Íris
+  for y = -8, 8 do
+    for x = -12, 12 do
+      if (x * x) / 144 + (y * y) / 64 <= 1 then
+        mon.setCursorPos(baseX + x + offsetX, baseY + y + offsetY)
+        mon.setBackgroundColor(cor)
+        mon.write(" ")
+      end
+    end
+  end
+
+  -- Pupila
+  for y = -2, 2 do
+    for x = -2, 2 do
+      mon.setCursorPos(baseX + x + offsetX, baseY + y + offsetY)
+      mon.setBackgroundColor(colors.black)
+      mon.write(" ")
+    end
+  end
+
+  if emoc == "bravo" then
+    -- Bordas pulsantes vermelhas em volta da esclera (para efeito intenso)
+    local pulsos = { -15, 15 }
+    for _, px in ipairs(pulsos) do
+      for x = -26, 26 do
+        mon.setCursorPos(baseX + x, baseY + px)
+        mon.setBackgroundColor(colors.red)
+        mon.write(" ")
+      end
+    end
+    for _, py in ipairs(pulsos) do
+      for y = -14, 14 do
+        mon.setCursorPos(baseX + py, baseY + y)
+        mon.setBackgroundColor(colors.red)
+        mon.write(" ")
+      end
+    end
+  elseif emoc == "triste" then
+    for i = 1, #lagrimas_colunas do
+      local col = lagrimas_colunas[i] + tremorDeslocX
+      local baseY_lagrima = lagrimas_alturas[i] + lagrimas_pos[i] + tremorDeslocY
+
+      if baseY_lagrima <= h then
+        mon.setCursorPos(col, baseY_lagrima)
+        mon.setBackgroundColor(colors.blue)
+        mon.write(" ")
+      end
+
+      local limpaY = baseY_lagrima - 1
+      if limpaY > baseY + 14 then
+        mon.setCursorPos(col, limpaY)
+        mon.setBackgroundColor(colors.black)
+        mon.write(" ")
+      end
+    end
+  elseif emoc == "assustado" then
+    for y = -8, 8 do
+      for x = -12, 12 do
+        mon.setCursorPos(baseX + x + offsetX, baseY + y + offsetY)
+        mon.setBackgroundColor(colors.white)
+        mon.write(" ")
+      end
+    end
+    for y = -3, 3 do
+      for x = -3, 3 do
+        mon.setCursorPos(baseX + x + offsetX, baseY + y + offsetY)
+        mon.setBackgroundColor(colors.lightGray)
+        mon.write(" ")
+      end
+    end
+    for y = -1, 1 do
+      for x = -1, 1 do
+        mon.setCursorPos(baseX + x + offsetX, baseY + y + offsetY)
+        mon.setBackgroundColor(colors.black)
+        mon.write(" ")
+      end
+    end
+  end
+end
+
+local function escolherEmocao()
+  local chance = math.random()
+  if chance < 0.05 then
+    local emos = {"bravo", "triste", "assustado"}
+    return emos[math.random(#emos)]
+  end
+  return nil
+end
+
+local emoc_atual = nil
+local emoc_timer = 0
+
+while true do
+  if emoc_atual then
+    emoc_timer = emoc_timer - 0.4
+    if emoc_timer <= 0 then
+      emoc_atual = nil
+      tremendo = false
+    end
+  else
+    emoc_atual = escolherEmocao()
+    if emoc_atual then
+      emoc_timer = 30 + math.random(10)
+      tremendo = (emoc_atual == "bravo") -- tremor só quando bravo
+      tremor_timer = 0
+    end
+  end
+
+  local pupila = posicoes[math.random(#posicoes)]
+  local cor = cores[math.random(#cores)]
+
+  local tremorX, tremorY = 0, 0
+  if tremendo then
+    tremor_timer = tremor_timer + 1
+    -- Tremor dura uns 5 segundos (aprox 12 ciclos de 0.4s)
+    if tremor_timer <= 12 then
+      tremorX = math.random(-1,1)
+      tremorY = math.random(-1,1)
+    else
+      tremendo = false
+    end
+  end
+
+  desenharOlho(pupila.x, pupila.y, cor, emoc_atual, tremorX, tremorY)
+
+  -- Atualiza lágrimas se estiver triste
+  if emoc_atual == "triste" then
+    for i = 1, #lagrimas_pos do
+      lagrimas_pos[i] = lagrimas_pos[i] + 1
+      if lagrimas_pos[i] > lagrimas_max_altura then
+        lagrimas_pos[i] = 0
+      end
+    end
+  end
+
+  sleep(0.4)
+end
+
