@@ -309,12 +309,6 @@ local function updateEye()
         eye.lookX = eye.lookX * 0.7 + (math.random() * 2 - 1) * 0.3
         eye.lookY = eye.lookY * 0.7 + (math.random() * 2 - 1) * 0.3
     end
-    
-    -- Rotação de cores
-    eye.colorIndex = (math.floor(os.epoch() / 500) % #settings.colors + 1
-    
-
-end
 
 -- Loop principal
 while true do
