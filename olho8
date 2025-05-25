@@ -222,11 +222,3 @@ while true do
       end
     end
   end
-
-  sleep(0.4)
-end
-    end
-  end
-
-  sleep(0.4)
-end
