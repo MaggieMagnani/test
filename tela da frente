@@ -1,0 +1,58 @@
+-- tela_vortex.lua
+
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+
+local cores = {
+  colors.red, colors.orange, colors.yellow,
+  colors.green, colors.blue, colors.purple,
+  colors.magenta, colors.lime, colors.cyan, colors.white
+}
+
+-- Função para desenhar um ponto colorido
+local function draw(x, y, color)
+  if x >= 1 and x <= w and y >= 1 and y <= h then
+    mon.setCursorPos(x, y)
+    mon.setBackgroundColor(color)
+    mon.write(" ")
+  end
+end
+
+-- Converte polar para cartesianas (com centro ajustado)
+local function polarToXY(angle, radius)
+  local x = math.floor(w / 2 + math.cos(angle) * radius)
+  local y = math.floor(h / 2 + math.sin(angle) * radius)
+  return x, y
+end
+
+-- Loop de animação espiral
+local angle = 0
+while true do
+  mon.setBackgroundColor(colors.black)
+  mon.clear()
+
+  local passos = math.min(w, h) * 2
+  for i = 1, passos do
+    local a = angle + i * 0.2
+    local r = i / 2
+    local x, y = polarToXY(a, r)
+    local cor = cores[(i % #cores) + 1]
+    draw(x, y, cor)
+  end
+
+  angle = angle + 0.2
+  sleep(0.05)
+end
