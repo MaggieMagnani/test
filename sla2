@@ -1,0 +1,34 @@
+-- tela_grade.lua
+
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local cores = {
+  colors.red, colors.green, colors.blue,
+  colors.orange, colors.cyan, colors.magenta,
+  colors.lime, colors.white
+}
+
+while true do
+  for y = 1, h do
+    for x = 1, w do
+      local cor = cores[math.random(#cores)]
+      mon.setCursorPos(x, y)
+      mon.setBackgroundColor(cor)
+      mon.write(" ")
+    end
+  end
+  sleep(0.15)
+end
