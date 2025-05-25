@@ -1,4 +1,4 @@
--- olho_gigante_v5.lua (bravo melhorado + tremor)
+-- olho_gigante_v6.lua (choro aprimorado + vermelhidão suave)
 
 local mon
 for _, nome in ipairs(peripheral.getNames()) do
@@ -31,10 +31,20 @@ local posicoes = {
 }
 
 -- Variáveis para lágrimas
-local lagrimas_colunas = {cx - 8, cx, cx + 8}
-local lagrimas_alturas = {cy + 15, cy + 16, cy + 15}
-local lagrimas_pos = {0, 0, 0}
-local lagrimas_max_altura = h - lagrimas_alturas[1]
+local lagrimas_colunas = {}
+local lagrimas_alturas = {}
+local lagrimas_pos = {}
+local lagrimas_max_altura = h - 1
+
+-- Preencher colunas para várias lágrimas
+do
+  local startX = cx - 20
+  for i = 1, 10 do
+    lagrimas_colunas[i] = startX + (i * 4)
+    lagrimas_alturas[i] = cy + 14 + math.random(0,2)
+    lagrimas_pos[i] = math.random(0, 8)
+  end
+end
 
 local tremendo = false
 local tremor_timer = 0
@@ -49,12 +59,17 @@ local function desenharOlho(offsetX, offsetY, cor, emoc, tremorDeslocX, tremorDe
   local baseX = cx + tremorDeslocX
   local baseY = cy + tremorDeslocY
 
-  -- Esclera
+  -- Esclera com faixa vermelha na parte inferior (vermelhidão suave)
   for y = -14, 14 do
     for x = -26, 26 do
       if (x * x) / 676 + (y * y) / 196 <= 1 then
         mon.setCursorPos(baseX + x, baseY + y)
-        mon.setBackgroundColor(colors.white)
+        if y >= 8 and y <= 14 then
+          -- Vermelhidão sutil na faixa inferior
+          mon.setBackgroundColor(colors.red)
+        else
+          mon.setBackgroundColor(colors.white)
+        end
         mon.write(" ")
       end
     end
@@ -80,8 +95,8 @@ local function desenharOlho(offsetX, offsetY, cor, emoc, tremorDeslocX, tremorDe
     end
   end
 
+  -- Emoções específicas
   if emoc == "bravo" then
-    -- Bordas pulsantes vermelhas em volta da esclera (para efeito intenso)
     local pulsos = { -15, 15 }
     for _, px in ipairs(pulsos) do
       for x = -26, 26 do
@@ -98,6 +113,7 @@ local function desenharOlho(offsetX, offsetY, cor, emoc, tremorDeslocX, tremorDe
       end
     end
   elseif emoc == "triste" then
+    -- Desenha lágrimas escorrendo em múltiplas colunas na parte inferior do olho
     for i = 1, #lagrimas_colunas do
       local col = lagrimas_colunas[i] + tremorDeslocX
       local baseY_lagrima = lagrimas_alturas[i] + lagrimas_pos[i] + tremorDeslocY
@@ -111,8 +127,8 @@ local function desenharOlho(offsetX, offsetY, cor, emoc, tremorDeslocX, tremorDe
       local limpaY = baseY_lagrima - 1
       if limpaY > baseY + 14 then
         mon.setCursorPos(col, limpaY)
-        mon.setBackgroundColor(colors.black)
-        mon.write(" ")
+        mon.setBackgroundColor(colors.red)
+        mon.write(" ") -- Mantém vermelho na parte inferior para efeito de irritação
       end
     end
   elseif emoc == "assustado" then
@@ -163,7 +179,7 @@ while true do
     emoc_atual = escolherEmocao()
     if emoc_atual then
       emoc_timer = 30 + math.random(10)
-      tremendo = (emoc_atual == "bravo") -- tremor só quando bravo
+      tremendo = (emoc_atual == "bravo")
       tremor_timer = 0
     end
   end
@@ -174,7 +190,6 @@ while true do
   local tremorX, tremorY = 0, 0
   if tremendo then
     tremor_timer = tremor_timer + 1
-    -- Tremor dura uns 5 segundos (aprox 12 ciclos de 0.4s)
     if tremor_timer <= 12 then
       tremorX = math.random(-1,1)
       tremorY = math.random(-1,1)
@@ -185,7 +200,6 @@ while true do
 
   desenharOlho(pupila.x, pupila.y, cor, emoc_atual, tremorX, tremorY)
 
-  -- Atualiza lágrimas se estiver triste
   if emoc_atual == "triste" then
     for i = 1, #lagrimas_pos do
       lagrimas_pos[i] = lagrimas_pos[i] + 1
@@ -197,4 +211,3 @@ while true do
 
   sleep(0.4)
 end
-
