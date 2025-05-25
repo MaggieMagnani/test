@@ -96,4 +96,5 @@ while true do
     piscar(cx, cy)
   end
 
-  sleep(math.random(5
+  sleep(math.random(5, 12) / 10)
+end
