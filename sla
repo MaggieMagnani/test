@@ -1,4 +1,4 @@
--- tela_raios.lua
+-- tela_onda.lua
 
 local mon
 for _, nome in ipairs(peripheral.getNames()) do
@@ -16,16 +16,20 @@ end
 mon.setTextScale(0.5)
 local w, h = mon.getSize()
 local cores = {
-  colors.red, colors.yellow, colors.green,
-  colors.blue, colors.magenta, colors.orange
+  colors.red, colors.orange, colors.yellow,
+  colors.green, colors.blue, colors.magenta,
+  colors.cyan, colors.white
 }
+
+local t = 0
 
 while true do
   for y = 1, h do
     mon.setCursorPos(1, y)
-    local cor = cores[(y + os.clock() * 10) % #cores + 1]
-    mon.setBackgroundColor(cor)
+    local corIndex = math.floor((math.sin((y + t) / 2) + 1) * (#cores / 2)) + 1
+    mon.setBackgroundColor(cores[corIndex])
     mon.write(string.rep(" ", w))
   end
-  sleep(0.1)
+  t = t + 1
+  sleep(0.08)
 end
