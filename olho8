@@ -1,4 +1,4 @@
--- olho_gigante_v6.lua (choro aprimorado + vermelhidão suave)
+-- olho_gigante_v7.lua (choro com base azul + bravo fixo colorido)
 
 local mon
 for _, nome in ipairs(peripheral.getNames()) do
@@ -32,22 +32,37 @@ local posicoes = {
 
 -- Variáveis para lágrimas
 local lagrimas_colunas = {}
-local lagrimas_alturas = {}
 local lagrimas_pos = {}
 local lagrimas_max_altura = h - 1
 
--- Preencher colunas para várias lágrimas
 do
   local startX = cx - 20
   for i = 1, 10 do
     lagrimas_colunas[i] = startX + (i * 4)
-    lagrimas_alturas[i] = cy + 14 + math.random(0,2)
     lagrimas_pos[i] = math.random(0, 8)
   end
 end
 
 local tremendo = false
 local tremor_timer = 0
+
+-- Desenha a esclera (parte branca) normal ou azulada se chorar
+local function desenharEsclera(baseX, baseY, chora)
+  for y = -14, 14 do
+    for x = -26, 26 do
+      if (x * x) / 676 + (y * y) / 196 <= 1 then
+        mon.setCursorPos(baseX + x, baseY + y)
+        if chora and y >= 8 and y <= 14 then
+          -- faixa azul suave na parte inferior se chorar
+          mon.setBackgroundColor(colors.lightBlue)
+        else
+          mon.setBackgroundColor(colors.white)
+        end
+        mon.write(" ")
+      end
+    end
+  end
+end
 
 local function desenharOlho(offsetX, offsetY, cor, emoc, tremorDeslocX, tremorDeslocY)
   tremorDeslocX = tremorDeslocX or 0
@@ -59,21 +74,9 @@ local function desenharOlho(offsetX, offsetY, cor, emoc, tremorDeslocX, tremorDe
   local baseX = cx + tremorDeslocX
   local baseY = cy + tremorDeslocY
 
-  -- Esclera com faixa vermelha na parte inferior (vermelhidão suave)
-  for y = -14, 14 do
-    for x = -26, 26 do
-      if (x * x) / 676 + (y * y) / 196 <= 1 then
-        mon.setCursorPos(baseX + x, baseY + y)
-        if y >= 8 and y <= 14 then
-          -- Vermelhidão sutil na faixa inferior
-          mon.setBackgroundColor(colors.red)
-        else
-          mon.setBackgroundColor(colors.white)
-        end
-        mon.write(" ")
-      end
-    end
-  end
+  local chora = (emoc == "triste")
+
+  desenharEsclera(baseX, baseY, chora)
 
   -- Íris
   for y = -8, 8 do
@@ -97,41 +100,52 @@ local function desenharOlho(offsetX, offsetY, cor, emoc, tremorDeslocX, tremorDe
 
   -- Emoções específicas
   if emoc == "bravo" then
-    local pulsos = { -15, 15 }
-    for _, px in ipairs(pulsos) do
+    -- Fundo da esclera fica escuro (cinza escuro)
+    for y = -14, 14 do
       for x = -26, 26 do
-        mon.setCursorPos(baseX + x, baseY + px)
-        mon.setBackgroundColor(colors.red)
+        if (x * x) / 676 + (y * y) / 196 <= 1 then
+          mon.setCursorPos(baseX + x, baseY + y)
+          mon.setBackgroundColor(colors.gray)
+          mon.write(" ")
+        end
+      end
+    end
+    -- Íris fixa, centro (offset 0,0) com cor pulsante vermelha/laranja
+    local pulseColors = {colors.red, colors.orange, colors.red}
+    local pulseCor = pulseColors[math.floor(os.clock() * 2) % #pulseColors + 1]
+
+    for y = -8, 8 do
+      for x = -12, 12 do
+        if (x * x) / 144 + (y * y) / 64 <= 1 then
+          mon.setCursorPos(baseX + x, baseY + y)
+          mon.setBackgroundColor(pulseCor)
+          mon.write(" ")
+        end
+      end
+    end
+    -- Pupila central fixa
+    for y = -2, 2 do
+      for x = -2, 2 do
+        mon.setCursorPos(baseX + x, baseY + y)
+        mon.setBackgroundColor(colors.black)
         mon.write(" ")
       end
     end
-    for _, py in ipairs(pulsos) do
-      for y = -14, 14 do
-        mon.setCursorPos(baseX + py, baseY + y)
-        mon.setBackgroundColor(colors.red)
-        mon.write(" ")
-      end
-    end
+
   elseif emoc == "triste" then
     -- Desenha lágrimas escorrendo em múltiplas colunas na parte inferior do olho
     for i = 1, #lagrimas_colunas do
       local col = lagrimas_colunas[i] + tremorDeslocX
-      local baseY_lagrima = lagrimas_alturas[i] + lagrimas_pos[i] + tremorDeslocY
+      local baseY_lagrima = cy + 14 + lagrimas_pos[i] + tremorDeslocY
 
       if baseY_lagrima <= h then
         mon.setCursorPos(col, baseY_lagrima)
         mon.setBackgroundColor(colors.blue)
         mon.write(" ")
       end
-
-      local limpaY = baseY_lagrima - 1
-      if limpaY > baseY + 14 then
-        mon.setCursorPos(col, limpaY)
-        mon.setBackgroundColor(colors.red)
-        mon.write(" ") -- Mantém vermelho na parte inferior para efeito de irritação
-      end
     end
   elseif emoc == "assustado" then
+    -- Olho branco com íris cinza clara e pupila pequena
     for y = -8, 8 do
       for x = -12, 12 do
         mon.setCursorPos(baseX + x + offsetX, baseY + y + offsetY)
@@ -206,6 +220,11 @@ while true do
       if lagrimas_pos[i] > lagrimas_max_altura then
         lagrimas_pos[i] = 0
       end
+    end
+  end
+
+  sleep(0.4)
+end
     end
   end
 
