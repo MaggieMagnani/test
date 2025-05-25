@@ -1,0 +1,99 @@
+-- tela_olho.lua
+
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+
+-- Paleta psicodélica
+local cores = {
+  colors.red, colors.orange, colors.yellow,
+  colors.green, colors.blue, colors.purple,
+  colors.pink, colors.lightBlue, colors.lime, colors.magenta
+}
+
+-- Posições relativas da pupila
+local direcoes = {
+  {x = 0, y = 0},    -- centro
+  {x = -1, y = 0},   -- esquerda
+  {x = 1, y = 0},    -- direita
+  {x = 0, y = -1},   -- cima
+  {x = 0, y = 1},    -- baixo
+  {x = -1, y = -1},  -- canto superior esquerdo
+  {x = 1, y = -1},   -- canto superior direito
+  {x = -1, y = 1},   -- canto inferior esquerdo
+  {x = 1, y = 1}     -- canto inferior direito
+}
+
+-- Desenha o olho aberto
+local function desenharOlho(cx, cy, pupilaX, pupilaY, corIris)
+  mon.setBackgroundColor(colors.black)
+  mon.clear()
+
+  -- Parte branca (esclera)
+  for y = -3, 3 do
+    for x = -7, 7 do
+      if (x * x) / 49 + (y * y) / 9 <= 1 then
+        mon.setCursorPos(cx + x, cy + y)
+        mon.setBackgroundColor(colors.white)
+        mon.write(" ")
+      end
+    end
+  end
+
+  -- Íris (colorida)
+  for y = -1, 1 do
+    for x = -2, 2 do
+      mon.setCursorPos(cx + x, cy + y)
+      mon.setBackgroundColor(corIris)
+      mon.write(" ")
+    end
+  end
+
+  -- Pupila (olha pros lados)
+  mon.setCursorPos(cx + pupilaX, cy + pupilaY)
+  mon.setBackgroundColor(colors.black)
+  mon.write(" ")
+end
+
+-- Piscar: cobre com pálpebra
+local function piscar(cx, cy)
+  for i = 0, 3 do
+    mon.setBackgroundColor(colors.black)
+    for y = -i, i do
+      for x = -7, 7 do
+        if (x * x) / 49 + (y * y) / 9 <= 1 then
+          mon.setCursorPos(cx + x, cy + y)
+          mon.write(" ")
+        end
+      end
+    end
+    sleep(0.05)
+  end
+  sleep(0.1)
+end
+
+-- Loop principal
+local cx, cy = math.floor(w / 2), math.floor(h / 2)
+
+while true do
+  local pupila = direcoes[math.random(#direcoes)]
+  local corIris = cores[math.random(#cores)]
+  desenharOlho(cx, cy, pupila.x, pupila.y, corIris)
+
+  if math.random() < 0.2 then
+    piscar(cx, cy)
+  end
+
+  sleep(math.random(5
