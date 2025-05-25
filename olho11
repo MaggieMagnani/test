@@ -148,7 +148,7 @@ local function drawIris()
     
     -- Efeito psicodélico na íris
     if eye.mode == "rainbowIris" or eye.mode == "psycho" then
-        irisColor = settings.colors[(math.floor(os.epoch() / 200) % #settings.colors + 1]
+        irisColor = settings.colors[(math.floor(os.epoch) / 200) % #settings.colors + 1]
     end
     
     -- Olho cheio d'água
