@@ -11,14 +11,12 @@ local centerX, centerY = math.floor(w / 2), math.floor(h / 2)
 
 -- Configurações avançadas
 local settings = {
-    -- Cores psicodélicas
     colors = {
         colors.white, colors.orange, colors.magenta, colors.lime,
         colors.cyan, colors.pink, colors.yellow, colors.green,
         colors.purple, colors.blue, colors.red, colors.brown
     },
     
-    -- Estados especiais
     specialModes = {
         "rainbowIris",       -- Iris muda de cor
         "discoBackground",   -- Fundo muda de cor
@@ -29,7 +27,6 @@ local settings = {
         "blackout"           -- Olho fechando
     },
     
-    -- Probabilidades
     chances = {
         normal = 0.7,        -- 70% do tempo normal
         special = 0.05,      -- 5% de chance para modo especial
@@ -67,8 +64,8 @@ for i = 1, 30 do
     eye.veins[i] = {
         x1 = math.random(-25, 25),
         y1 = math.random(-15, 15),
-        x2 = x1 + math.random(-5, 5),
-        y2 = y1 + math.random(-3, 3),
+        x2 = math.random(-25, 25),
+        y2 = math.random(-15, 15),
         width = math.random(1, 2)
     }
 end
@@ -149,7 +146,7 @@ local function drawIris()
     -- Efeito psicodélico na íris
     if eye.mode == "rainbowIris" or eye.mode == "psycho" then
         local timeIndex = (math.floor(os.epoch() / 200) % #settings.colors) + 1
-irisColor = settings.colors[math.max(1, math.min(timeIndex, #settings.colors))]
+        irisColor = settings.colors[math.max(1, math.min(timeIndex, #settings.colors))]
     end
     
     -- Olho cheio d'água
@@ -173,7 +170,7 @@ irisColor = settings.colors[math.max(1, math.min(timeIndex, #settings.colors))]
         end
     end
     
-    -- Desenhar pupila
+    -- Desenhar pupila (CORREÇÃO APLICADA AQUI - pupilSize estava escrito errado)
     for y = -pupilSize, pupilSize do
         for x = -pupilSize, pupilSize do
             if (x*x)/(pupilSize*pupilSize) + (y*y)/(pupilSize*pupilSize) <= 1 then
@@ -268,8 +265,8 @@ local function updateEye()
         eye.lookY = math.random() * 2 - 1
     end
     
-    -- Rotação de cores
-    eye.colorIndex = (os.epoch() // 500) % #settings.colors + 1
+    -- Rotação de cores (CORREÇÃO: substituído // por math.floor)
+    eye.colorIndex = (math.floor(os.epoch() / 500) % #settings.colors) + 1
     
     -- Efeitos psicodélicos
     eye.psychoEffect = (eye.psychoEffect + 0.1) % (math.pi * 2)
