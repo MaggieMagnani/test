@@ -1,0 +1,45 @@
+-- tela_tunel.lua
+
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local cores = {
+  colors.red, colors.orange, colors.yellow,
+  colors.green, colors.blue, colors.magenta, colors.white
+}
+
+local function desenharCirculo(cx, cy, raio, cor)
+  for ang = 0, 360, 10 do
+    local rad = math.rad(ang)
+    local x = math.floor(cx + math.cos(rad) * raio)
+    local y = math.floor(cy + math.sin(rad) * raio * 0.5)
+    if x >= 1 and x <= w and y >= 1 and y <= h then
+      mon.setCursorPos(x, y)
+      mon.setBackgroundColor(cor)
+      mon.write(" ")
+    end
+  end
+end
+
+while true do
+  mon.setBackgroundColor(colors.black)
+  mon.clear()
+  local cx, cy = math.floor(w / 2), math.floor(h / 2)
+  for r = 1, math.min(w, h) / 2, 1 do
+    local cor = cores[(r + math.floor(os.clock() * 4)) % #cores + 1]
+    desenharCirculo(cx, cy, r, cor)
+  end
+  sleep(0.1)
+end
