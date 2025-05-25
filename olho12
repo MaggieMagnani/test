@@ -1,4 +1,4 @@
--- Configuração avançada do olho psicodélico
+-- Configuração do olho psicodélico premium
 local mon = peripheral.find("monitor")
 if not mon then
     print("Nenhum monitor encontrado!")
@@ -19,54 +19,69 @@ local settings = {
     
     specialModes = {
         "rainbowIris",       -- Iris muda de cor
-        "discoBackground",   -- Fundo muda de cor
-        "psycho",            -- Efeito psicodélico total
-        "bloodshot",         -- Olho injetado
+        "discoBackground",   -- Fundo colorido pulsante
+        "equalizer",         -- Efeito de equalizador
         "watery",            -- Olho cheio d'água
         "angry",             -- Olho com raiva
         "blackout"           -- Olho fechando
     },
     
     chances = {
-        normal = 0.7,        -- 70% do tempo normal
-        special = 0.05,      -- 5% de chance para modo especial
-        emotion = 0.02,      -- 2% de chance de emoção forte
-        blink = 0.01         -- 1% de chance de piscar
+        normal = 0.85,       -- 85% do tempo normal
+        special = 0.03,       -- 3% de chance para modo especial
+        emotion = 0.01,       -- 1% de chance de emoção forte
+        blink = 0.005         -- 0.5% de chance de piscar
+    },
+    
+    durations = {
+        normal = 200,         -- 20 segundos
+        special = 250,        -- 25 segundos
+        emotion = 300         -- 30 segundos
     }
 }
 
 -- Estado do olho
 local eye = {
-    mode = "normal",         -- Modo atual
-    timer = 0,               -- Timer do modo atual
-    colorIndex = 1,          -- Índice da cor atual
-    blink = 0,               -- Progresso do piscar (0-1)
-    lookX = 0,               -- Direção do olhar X (-1 a 1)
-    lookY = 0,               -- Direção do olhar Y (-1 a 1)
-    tears = {},              -- Partículas de lágrima
-    veins = {},              -- Veias vermelhas
-    backgroundEffect = 0,    -- Efeito de fundo
-    psychoEffect = 0         -- Efeito psicodélico
+    mode = "normal",
+    timer = 0,
+    colorIndex = 1,
+    blink = 0,
+    lookX = 0,
+    lookY = 0,
+    tears = {},
+    veins = {},
+    equalizer = {},
+    psychoEffect = 0,
+    waterLevel = 0
 }
 
 -- Inicializar partículas
-for i = 1, 50 do
+for i = 1, 80 do  -- Mais lágrimas
     eye.tears[i] = {
-        x = math.random(-30, 30),
-        y = math.random(-20, 20),
-        speed = math.random(1, 3),
-        size = math.random(1, 2),
-        active = false
+        x = math.random(-35, 35),
+        y = math.random(-25, 25),
+        speed = math.random(1, 4),
+        size = math.random(1, 3),
+        active = false,
+        bright = math.random() < 0.3
     }
 end
 
-for i = 1, 30 do
+for i = 1, 40 do  -- Mais veias
     eye.veins[i] = {
-        x1 = math.random(-25, 25),
-        y1 = math.random(-15, 15),
-        x2 = math.random(-25, 25),
-        y2 = math.random(-15, 15),
-        width = math.random(1, 2)
+        x1 = math.random(-28, 28),
+        y1 = math.random(-18, 18),
+        x2 = math.random(-28, 28),
+        y2 = math.random(-18, 18),
+        width = math.random(1, 3)
+    }
+end
+
+-- Inicializar equalizador
+for i = 1, 36 do  -- 36 barras do equalizador (10 graus cada)
+    eye.equalizer[i] = {
+        height = math.random(1, 5),
+        speed = math.random(1, 3) / 10
     }
 end
 
@@ -76,16 +91,38 @@ local function drawBaseEye()
     local eyeWidth = math.floor(30 * eyeOpen)
     local eyeHeight = math.floor(20 * eyeOpen)
     
-    -- Desenhar fundo psicodélico
-    if eye.mode == "discoBackground" or eye.mode == "psycho" then
+    -- Desenhar fundo especial
+    if eye.mode == "discoBackground" then
         for y = -h/2, h/2 do
             for x = -w/2, w/2 do
                 if (x*x)/(w*w/4) + (y*y)/(h*h/4) > 1 then
-                    local c = settings.colors[(eye.colorIndex + x + y) % #settings.colors + 1]
+                    local c = settings.colors[(eye.colorIndex + x + y + math.floor(os.epoch()/200)) % #settings.colors + 1]
                     mon.setBackgroundColor(c)
                     mon.setCursorPos(centerX + x, centerY + y)
                     mon.write(" ")
                 end
+            end
+        end
+    elseif eye.mode == "equalizer" then
+        -- Desenhar equalizador ao redor do olho
+        local radius = math.max(w, h)/2 + 5
+        for i, bar in ipairs(eye.equalizer) do
+            local angle = (i * 10) * (math.pi / 180)
+            local x = math.floor(radius * math.cos(angle))
+            local y = math.floor(radius * math.sin(angle))
+            
+            -- Atualizar altura da barra
+            bar.height = bar.height + bar.speed
+            if bar.height > 8 or bar.height < 1 then
+                bar.speed = -bar.speed
+            end
+            
+            -- Desenhar barra
+            for h = 1, math.floor(bar.height) do
+                local colorIndex = (i + math.floor(os.epoch()/200)) % #settings.colors + 1
+                mon.setBackgroundColor(settings.colors[colorIndex])
+                mon.setCursorPos(centerX + x, centerY + y)
+                mon.write(" ")
             end
         end
     end
@@ -97,8 +134,8 @@ local function drawBaseEye()
                 local c = colors.white
                 
                 -- Efeito injetado
-                if eye.mode == "bloodshot" or eye.mode == "angry" then
-                    if math.random() < 0.3 then
+                if eye.mode == "angry" then
+                    if math.random() < 0.4 then
                         c = colors.red
                     end
                 end
@@ -112,6 +149,16 @@ local function drawBaseEye()
                     end
                 end
                 
+                -- Olho cheio d'água
+                if eye.mode == "watery" then
+                    if math.random() < 0.2 then
+                        c = colors.lightBlue
+                    end
+                    if y < -eyeHeight/2 and math.random() < eye.waterLevel/10 then
+                        c = colors.cyan
+                    end
+                end
+                
                 mon.setBackgroundColor(c)
                 mon.setCursorPos(centerX + x, centerY + y)
                 mon.write(" ")
@@ -120,7 +167,7 @@ local function drawBaseEye()
     end
     
     -- Desenhar veias vermelhas
-    if eye.mode == "bloodshot" or eye.mode == "angry" then
+    if eye.mode == "angry" then
         for _, v in ipairs(eye.veins) do
             local steps = math.max(math.abs(v.x2 - v.x1), math.abs(v.y2 - v.y1))
             for i = 0, steps do
@@ -138,20 +185,16 @@ end
 
 -- Função para desenhar a íris e pupila
 local function drawIris()
-    if eye.blink > 0.7 then return end  -- Não desenhar se estiver quase fechado
+    if eye.blink > 0.7 then return end
     
     local irisColor = settings.colors[eye.colorIndex]
     local pupilSize = 3
     
-    -- Efeito psicodélico na íris
-    if eye.mode == "rainbowIris" or eye.mode == "psycho" then
-        local timeIndex = (math.floor(os.epoch() / 200) % #settings.colors) + 1
-        irisColor = settings.colors[math.max(1, math.min(timeIndex, #settings.colors))]
-    end
-    
-    -- Olho cheio d'água
-    if eye.mode == "watery" then
-        irisColor = colors.cyan
+    -- Efeitos especiais na íris
+    if eye.mode == "rainbowIris" then
+        irisColor = settings.colors[(math.floor(os.epoch() / 150) % #settings.colors) + 1]
+    elseif eye.mode == "watery" then
+        irisColor = colors.blue
         pupilSize = 2
     end
     
@@ -170,7 +213,7 @@ local function drawIris()
         end
     end
     
-    -- Desenhar pupila (CORREÇÃO APLICADA AQUI - pupilSize estava escrito errado)
+    -- Desenhar pupila
     for y = -pupilSize, pupilSize do
         for x = -pupilSize, pupilSize do
             if (x*x)/(pupilSize*pupilSize) + (y*y)/(pupilSize*pupilSize) <= 1 then
@@ -182,48 +225,47 @@ local function drawIris()
     end
 end
 
--- Função para desenhar lágrimas
+-- Função para desenhar lágrimas (agora mais visíveis e azuis)
 local function drawTears()
-    if eye.mode ~= "watery" and eye.mode ~= "sad" then return end
+    if eye.mode ~= "watery" then return end
+    
+    -- Atualizar nível d'água
+    eye.waterLevel = math.min(10, eye.waterLevel + 0.1)
     
     -- Atualizar lágrimas
     for _, t in ipairs(eye.tears) do
         if t.active then
             t.y = t.y + t.speed
-            if t.y > 25 then
+            if t.y > 30 then
                 t.active = false
             end
-        elseif math.random() < 0.05 then
+        elseif math.random() < 0.08 * eye.waterLevel/10 then
             t.active = true
-            t.x = math.random(-25, 25)
-            t.y = -20
-            t.speed = math.random(1, 3)
+            t.x = math.random(-30, 30)
+            t.y = -25
+            t.speed = math.random(2, 5)
+            t.size = math.random(1, 3)
+            t.bright = math.random() < 0.3
         end
     end
     
     -- Desenhar lágrimas ativas
     for _, t in ipairs(eye.tears) do
         if t.active then
+            local tearColor = t.bright and colors.lightBlue or colors.blue
             for i = 0, t.size do
-                mon.setBackgroundColor(colors.cyan)
+                mon.setBackgroundColor(tearColor)
                 mon.setCursorPos(centerX + t.x, centerY + t.y + i)
                 mon.write(" ")
-                
-                -- Brilho da lágrima
-                if i == 0 and math.random() < 0.3 then
-                    mon.setBackgroundColor(colors.white)
-                    mon.setCursorPos(centerX + t.x, centerY + t.y)
-                    mon.write(" ")
-                end
             end
         end
     end
     
-    -- Olho cheio d'água (efeito de reflexo)
-    if eye.mode == "watery" then
+    -- Reflexos na água
+    if eye.waterLevel > 5 then
         for y = -5, 5 do
             for x = -10, 10 do
-                if (x*x)/100 + (y*y)/25 <= 1 and math.random() < 0.1 then
+                if (x*x)/100 + (y*y)/25 <= 1 and math.random() < 0.15 * eye.waterLevel/10 then
                     mon.setBackgroundColor(colors.white)
                     mon.setCursorPos(centerX + x, centerY + y)
                     mon.write(" ")
@@ -238,36 +280,41 @@ local function updateEye()
     -- Atualizar timer do modo atual
     eye.timer = eye.timer - 1
     if eye.timer <= 0 then
-        -- 70% de chance de voltar ao normal
         if math.random() < settings.chances.normal then
             eye.mode = "normal"
+            eye.timer = settings.durations.normal + math.random(-50, 50)
+            eye.waterLevel = 0
         else
-            -- Escolher um modo especial aleatório
             eye.mode = settings.specialModes[math.random(#settings.specialModes)]
+            eye.timer = settings.durations.special + math.random(-50, 50)
+            if eye.mode == "watery" then
+                eye.timer = settings.durations.emotion
+            end
         end
-        eye.timer = math.random(20, 100)  -- Duração do modo
     end
     
-    -- Piscar aleatoriamente
+    -- Piscar aleatoriamente (mais raro)
     if math.random() < settings.chances.blink then
         eye.blink = 0.3
     end
     
     -- Atualizar piscar
     if eye.blink > 0 then
-        eye.blink = eye.blink - 0.05
+        eye.blink = eye.blink - 0.03
         if eye.blink < 0 then eye.blink = 0 end
     end
     
-    -- Movimento aleatório do olhar
-    if math.random() < 0.1 then
-        eye.lookX = math.random() * 2 - 1
-        eye.lookY = math.random() * 2 - 1
+    -- Movimento aleatório do olhar (mais suave)
+    if math.random() < 0.05 then
+        eye.lookX = eye.lookX * 0.7 + (math.random() * 2 - 1) * 0.3
+        eye.lookY = eye.lookY * 0.7 + (math.random() * 2 - 1) * 0.3
     end
     
-    -- Rotação de cores (CORREÇÃO: substituído // por math.floor)
-    eye.colorIndex = (math.floor(os.epoch() / 500) % #settings.colors) + 1
+    -- Rotação de cores
+    eye.colorIndex = (math.floor(os.epoch() / 500) % #settings.colors + 1
     
+    -- Efeitos psicodélicos
+    eye.psychoEffect = (eye.psychoEffect + 0.05) % (math.pi * 2)
 end
 
 -- Loop principal
