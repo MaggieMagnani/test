@@ -1,0 +1,56 @@
+-- tela_espelho.lua
+
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local brilho = {}  -- lista de brilhos ativos
+
+local cores_reflexo = {
+  colors.white, colors.lightGray, colors.gray, colors.silver
+}
+
+-- Adiciona brilhos aleatórios
+local function gerarBrilhos()
+  for i = 1, math.random(5, 10) do
+    table.insert(brilho, {
+      x = math.random(1, w),
+      y = math.random(1, h),
+      color = cores_reflexo[math.random(#cores_reflexo)],
+      tempo = math.random(2, 6)
+    })
+  end
+end
+
+-- Atualiza e desenha brilhos
+local function desenhar()
+  mon.setBackgroundColor(colors.black)
+  mon.clear()
+
+  for i = #brilho, 1, -1 do
+    local b = brilho[i]
+    if b.tempo <= 0 then
+      table.remove(brilho, i)
+    else
+      mon.setCursorPos(b.x, b.y)
+      mon.setBackgroundColor(b.color)
+      mon.write(" ")
+      b.tempo = b.tempo - 1
+    end
+  end
+end
+
+-- Loop principal
+while true do
+  gerarBrilhos()
