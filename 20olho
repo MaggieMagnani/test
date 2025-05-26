@@ -1,0 +1,291 @@
+-- Configuração do olho psicodélico premium
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Nenhum monitor encontrado!")
+    return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local centerX, centerY = math.floor(w / 2), math.floor(h / 2)
+
+-- Configurações avançadas
+local settings = {
+    colors = {
+        colors.white, colors.orange, colors.magenta, colors.lime,
+        colors.cyan, colors.pink, colors.yellow, colors.green,
+        colors.purple, colors.blue, colors.red, colors.brown
+    },
+    
+    specialModes = {
+        "rainbowIris",
+        "discoBackground",
+        "equalizer",
+        "watery",
+        "angry",
+        "blackout"
+    },
+    
+    chances = {
+        normal = 0.85,
+        special = 0.03,
+        emotion = 0.01,
+        blink = 0.005
+    },
+    
+    durations = {
+        normal = 200,
+        special = 250,
+        emotion = 300
+    }
+}
+
+local eye = {
+    mode = "normal",
+    timer = 0,
+    colorIndex = 1,
+    blink = 0,
+    lookX = 0,
+    lookY = 0,
+    tears = {},
+    veins = {},
+    equalizer = {},
+    psychoEffect = 0,
+    waterLevel = 0
+}
+
+for i = 1, 80 do
+    eye.tears[i] = {
+        x = math.random(-35, 35),
+        y = math.random(-25, 25),
+        speed = math.random(1, 4),
+        size = math.random(1, 3),
+        active = false,
+        bright = math.random() < 0.3
+    }
+end
+
+for i = 1, 40 do
+    eye.veins[i] = {
+        x1 = math.random(-28, 28),
+        y1 = math.random(-18, 18),
+        x2 = math.random(-28, 28),
+        y2 = math.random(-18, 18),
+        width = math.random(1, 3)
+    }
+end
+
+for i = 1, 36 do
+    eye.equalizer[i] = {
+        height = math.random(1, 5),
+        speed = math.random(1, 3) / 10
+    }
+end
+
+local function drawBaseEye()
+    local eyeOpen = 1 - eye.blink
+    local eyeWidth = math.floor(30 * eyeOpen)
+    local eyeHeight = math.floor(20 * eyeOpen)
+
+    if eye.mode == "discoBackground" then
+        for y = -h/2, h/2 do
+            for x = -w/2, w/2 do
+                if (x*x)/(w*w/4) + (y*y)/(h*h/4) > 1 then
+                    local c = settings.colors[(eye.colorIndex + x + y + math.floor(os.epoch()/200)) % #settings.colors + 1]
+                    mon.setBackgroundColor(c)
+                    mon.setCursorPos(centerX + x, centerY + y)
+                    mon.write(" ")
+                end
+            end
+        end
+    elseif eye.mode == "equalizer" then
+        local radius = math.max(w, h)/2 + 5
+        for i, bar in ipairs(eye.equalizer) do
+            local angle = (i * 10) * (math.pi / 180)
+            local x = math.floor(radius * math.cos(angle))
+            local y = math.floor(radius * math.sin(angle))
+            bar.height = bar.height + bar.speed
+            if bar.height > 8 or bar.height < 1 then
+                bar.speed = -bar.speed
+            end
+            for h = 1, math.floor(bar.height) do
+                local colorIndex = (i + math.floor(os.epoch()/200)) % #settings.colors + 1
+                mon.setBackgroundColor(settings.colors[colorIndex])
+                mon.setCursorPos(centerX + x, centerY + y)
+                mon.write(" ")
+            end
+        end
+    end
+
+    for y = -eyeHeight, eyeHeight do
+        for x = -eyeWidth, eyeWidth do
+            if (x*x)/(eyeWidth*eyeWidth) + (y*y)/(eyeHeight*eyeHeight) <= 1 then
+                local c = colors.white
+                if eye.mode == "angry" and math.random() < 0.4 then
+                    c = colors.red
+                end
+                if eye.mode == "blackout" then
+                    if y > eyeHeight/3 then
+                        c = colors.black
+                    elseif y > eyeHeight/4 then
+                        c = colors.gray
+                    end
+                end
+                if eye.mode == "watery" then
+                    if math.random() < 0.2 then
+                        c = colors.lightBlue
+                    end
+                    if y < -eyeHeight/2 and math.random() < eye.waterLevel/10 then
+                        c = colors.cyan
+                    end
+                end
+                mon.setBackgroundColor(c)
+                mon.setCursorPos(centerX + x, centerY + y)
+                mon.write(" ")
+            end
+        end
+    end
+
+    if eye.mode == "angry" then
+        for _, v in ipairs(eye.veins) do
+            local steps = math.max(math.abs(v.x2 - v.x1), math.abs(v.y2 - v.y1))
+            for i = 0, steps do
+                local x = v.x1 + (v.x2 - v.x1) * i / steps
+                local y = v.y1 + (v.y2 - v.y1) * i / steps
+                if (x*x)/(eyeWidth*eyeWidth) + (y*y)/(eyeHeight*eyeHeight) <= 1 then
+                    mon.setBackgroundColor(colors.red)
+                    mon.setCursorPos(centerX + math.floor(x), centerY + math.floor(y))
+                    mon.write(" ")
+                end
+            end
+        end
+    end
+end
+
+local function drawIris()
+    if eye.blink > 0.7 then return end
+
+    local irisColor = settings.colors[eye.colorIndex]
+    local pupilSize = 3
+
+    if eye.mode == "rainbowIris" then
+        irisColor = settings.colors[(math.floor(os.epoch() / 150) % #settings.colors) + 1]
+    elseif eye.mode == "watery" then
+        irisColor = colors.blue
+        pupilSize = 2
+    end
+
+    local lookX = eye.lookX * 10
+    local lookY = eye.lookY * 6
+
+    for y = -6, 6 do
+        for x = -8, 8 do
+            if (x*x)/64 + (y*y)/36 <= 1 then
+                mon.setBackgroundColor(irisColor)
+                mon.setCursorPos(centerX + x + lookX, centerY + y + lookY)
+                mon.write(" ")
+            end
+        end
+    end
+
+    for y = -pupilSize, pupilSize do
+        for x = -pupilSize, pupilSize do
+            if (x*x)/(pupilSize*pupilSize) + (y*y)/(pupilSize*pupilSize) <= 1 then
+                mon.setBackgroundColor(colors.black)
+                mon.setCursorPos(centerX + x + lookX, centerY + y + lookY)
+                mon.write(" ")
+            end
+        end
+    end
+end
+
+local function drawTears()
+    if eye.mode ~= "watery" then return end
+
+    eye.waterLevel = math.min(10, eye.waterLevel + 0.1)
+
+    for _, t in ipairs(eye.tears) do
+        if t.active then
+            t.y = t.y + t.speed
+            if t.y > 30 then
+                t.active = false
+            end
+        elseif math.random() < 0.08 * eye.waterLevel/10 then
+            t.active = true
+            t.x = math.random(-30, 30)
+            t.y = -25
+            t.speed = math.random(2, 5)
+            t.size = math.random(1, 3)
+            t.bright = math.random() < 0.3
+        end
+    end
+
+    for _, t in ipairs(eye.tears) do
+        if t.active then
+            local tearColor = t.bright and colors.lightBlue or colors.blue
+            for i = 0, t.size do
+                mon.setBackgroundColor(tearColor)
+                mon.setCursorPos(centerX + t.x, centerY + t.y + i)
+                mon.write(" ")
+            end
+        end
+    end
+
+    if eye.waterLevel > 5 then
+        for y = -5, 5 do
+            for x = -10, 10 do
+                if (x*x)/100 + (y*y)/25 <= 1 and math.random() < 0.15 * eye.waterLevel/10 then
+                    mon.setBackgroundColor(colors.white)
+                    mon.setCursorPos(centerX + x, centerY + y)
+                    mon.write(" ")
+                end
+            end
+        end
+    end
+end
+
+local function updateEye()
+    eye.timer = eye.timer - 1
+    if eye.timer <= 0 then
+        if math.random() < settings.chances.normal then
+            eye.mode = "normal"
+            eye.timer = settings.durations.normal + math.random(-50, 50)
+            eye.waterLevel = 0
+        else
+            eye.mode = settings.specialModes[math.random(#settings.specialModes)]
+            eye.timer = settings.durations.special + math.random(-50, 50)
+            if eye.mode == "watery" then
+                eye.timer = settings.durations.emotion
+            end
+        end
+    end
+
+    if math.random() < settings.chances.blink then
+        eye.blink = 0.3
+    end
+
+    if eye.blink > 0 then
+        eye.blink = eye.blink - 0.03
+        if eye.blink < 0 then eye.blink = 0 end
+    end
+
+    if math.random() < 0.05 then
+        eye.lookX = eye.lookX * 0.7 + (math.random() * 2 - 1) * 0.3
+        eye.lookY = eye.lookY * 0.7 + (math.random() * 2 - 1) * 0.3
+    end
+
+    eye.colorIndex = (math.floor(os.epoch() / 500) % #settings.colors) + 1
+    eye.psychoEffect = (eye.psychoEffect + 0.05) % (math.pi * 2)
+end
+
+while true do
+    mon.setBackgroundColor(colors.black)
+    mon.clear()
+
+    updateEye()
+    drawBaseEye()
+    drawIris()
+    drawTears()
+
+    sleep(0.1)
+end
