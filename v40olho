@@ -1,0 +1,281 @@
+--= OLHO GIGANTE EMOCIONAL =--
+-- Versão 4.0 - Sem piscar e com tamanho aumentado
+
+--= CONFIGURAÇÃO INICIAL =--
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Monitor não encontrado!")
+    return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local centerX, centerY = math.floor(w / 2), math.floor(h / 2)
+
+-- Tamanho aumentado em 2x
+local EYE_SCALE = 2
+local IRIS_SCALE = 2
+
+--= FUNÇÕES ÚTEIS =--
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+local function weightedRandom(weights)
+    local total = 0
+    for _, w in pairs(weights) do
+        total = total + w
+    end
+    local r = math.random() * total
+    local sum = 0
+    for k, w in pairs(weights) do
+        sum = sum + w
+        if r <= sum then
+            return k
+        end
+    end
+end
+
+--= SISTEMA DE EMOÇÕES =--
+local EMOTIONS = {
+    CALMO = {
+        duration = {300, 500},
+        iris = {color = "rainbow", size = 8 * IRIS_SCALE}, -- Aumentado
+        sclera = {color = colors.white, redness = 0},
+        effects = {bg = "none", particles = "none"}
+    },
+    TRISTE = {
+        duration = {300, 400},
+        iris = {color = colors.blue, size = 8 * IRIS_SCALE},
+        sclera = {color = colors.lightBlue, redness = 0.1},
+        effects = {bg = "fog", particles = "tears", intensity = 0.7}
+    },
+    CHORANDO = {
+        duration = {400, 500},
+        iris = {color = colors.blue, size = 8 * IRIS_SCALE},
+        sclera = {color = colors.lightBlue, redness = 0.3},
+        effects = {bg = "storm", particles = "tears", intensity = 1.0}
+    },
+    ASSUSTADO = {
+        duration = {300, 400},
+        iris = {color = colors.lightGray, size = 10 * IRIS_SCALE}, -- Pupila dilatada
+        sclera = {color = colors.white, redness = 0.2},
+        effects = {bg = "flash", particles = "none", intensity = 0.5}
+    },
+    BRAVO = {
+        duration = {300, 400},
+        iris = {color = colors.red, size = 6 * IRIS_SCALE}, -- Pupila contraída
+        sclera = {color = colors.red, redness = 0.5},
+        effects = {bg = "fire", particles = "none", intensity = 0.8}
+    }
+}
+
+--= ESTADO DO OLHO =--
+local eye = {
+    emotion = "CALMO",
+    timer = 300,
+    look = {x = 0, y = 0, targetX = 0, targetY = 0},
+    particles = {
+        tears = {}
+    }
+}
+
+--= INICIALIZAÇÃO DE PARTÍCULAS =--
+for i = 1, 150 do  -- Mais partículas para olho maior
+    eye.particles.tears[i] = {
+        active = false,
+        x = 0,
+        y = 0,
+        size = 1,
+        speed = 1,
+        color = colors.blue,
+        life = 0
+    }
+end
+
+--= FUNÇÕES DE DESENHO =--
+local function drawPixel(x, y, color)
+    local drawX = centerX + x
+    local drawY = centerY + y
+    if drawX >= 1 and drawX <= w and drawY >= 1 and drawY <= h then
+        mon.setCursorPos(drawX, drawY)
+        mon.setBackgroundColor(color)
+        mon.write(" ")
+    end
+end
+
+local function drawEllipse(x, y, rx, ry, color)
+    -- Otimização para desenho de elipses grandes
+    local rx2 = rx * rx
+    local ry2 = ry * ry
+    for dy = -ry, ry do
+        local dxLimit = math.sqrt(rx2 * (1 - (dy*dy)/ry2))
+        for dx = -dxLimit, dxLimit do
+            drawPixel(x + math.floor(dx), y + math.floor(dy), color)
+        end
+    end
+end
+
+--= SISTEMA DE LÁGRIMAS MELHORADO =--
+local function updateTears(dt)
+    local e = EMOTIONS[eye.emotion]
+    if not e.effects.particles or e.effects.particles ~= "tears" then
+        return
+    end
+
+    local intensity = e.effects.intensity or 0.5
+    local spawnRate = lerp(0.8, 2.0, intensity) * dt  -- Aumentado para olho maior
+
+    for _, tear in ipairs(eye.particles.tears) do
+        if tear.active then
+            tear.y = tear.y + tear.speed * dt * 60  -- Movimento mais rápido
+            tear.life = tear.life - dt
+            if tear.y > h / 2 or tear.life <= 0 then
+                tear.active = false
+            end
+        elseif math.random() < spawnRate then
+            tear.active = true
+            tear.x = math.random(-40, 40)  -- Área maior
+            tear.y = -20 - math.random(10)  -- Começa mais acima
+            tear.size = math.random(1, 4)   -- Lágrimas maiores
+            tear.speed = math.random(20, 50) / 10 * intensity  -- Velocidade variada
+            tear.life = math.random(3, 7)   -- Duração maior
+            tear.color = ({colors.blue, colors.lightBlue, colors.cyan})[math.random(3)]
+        end
+    end
+end
+
+local function drawTears()
+    local e = EMOTIONS[eye.emotion]
+    if not e.effects.particles or e.effects.particles ~= "tears" then
+        return
+    end
+
+    for _, tear in ipairs(eye.particles.tears) do
+        if tear.active then
+            -- Lágrima principal com tamanho variado
+            for ly = 0, tear.size do
+                for lx = -1, 1 do
+                    if math.abs(lx) <= tear.size/3 then
+                        drawPixel(tear.x + lx, tear.y + ly, tear.color)
+                    end
+                end
+            end
+            
+            -- Reflexo na lágrima
+            if math.random() < 0.4 then
+                drawPixel(tear.x + math.random(-1, 1), tear.y + math.random(0,1), colors.white)
+            end
+        end
+    end
+    
+    -- Olho marejado (quando chorando muito)
+    if e.effects.intensity > 0.7 then
+        for i = 1, math.floor(e.effects.intensity * 20) do
+            drawPixel(math.random(-30, 30), math.random(-10, 0), colors.lightBlue)
+        end
+    end
+end
+
+--= DESENHO DO OLHO GIGANTE =--
+local function drawEye()
+    local e = EMOTIONS[eye.emotion]
+    
+    -- Tamanhos escalados
+    local scleraW, scleraH = 40 * EYE_SCALE, 20 * EYE_SCALE
+    local irisSize = e.iris.size
+    
+    -- Desenhar esclera (olho branco)
+    drawEllipse(0, 0, scleraW, scleraH, e.sclera.color)
+
+    -- Adicionar vermelhidão (para BRAVO)
+    if e.sclera.redness > 0 then
+        for i = 1, math.floor(e.sclera.redness * 150) do
+            drawPixel(
+                math.random(-scleraW, scleraW),
+                math.random(-scleraH, scleraH),
+                colors.red
+            )
+        end
+    end
+
+    -- Movimentar íris mais suave
+    if math.random() < 0.03 then
+        eye.look.targetX = math.random(-10, 10)
+        eye.look.targetY = math.random(-6, 6)
+    end
+    eye.look.x = lerp(eye.look.x, eye.look.targetX, 0.08)
+    eye.look.y = lerp(eye.look.y, eye.look.targetY, 0.08)
+
+    local irisX = math.floor(eye.look.x)
+    local irisY = math.floor(eye.look.y)
+
+    -- Cor da íris
+    local irisColor = e.iris.color
+    if irisColor == "rainbow" then
+        local time = os.epoch() / 1000
+        local hue = (time % 10) / 10
+        if hue < 0.17 then
+            irisColor = colors.red
+        elseif hue < 0.33 then
+            irisColor = colors.orange
+        elseif hue < 0.5 then
+            irisColor = colors.yellow
+        elseif hue < 0.67 then
+            irisColor = colors.green
+        elseif hue < 0.83 then
+            irisColor = colors.blue
+        else
+            irisColor = colors.purple
+        end
+    end
+
+    -- Íris
+    drawEllipse(irisX, irisY, irisSize, irisSize, irisColor)
+
+    -- Pupila (tamanho varia com emoção)
+    local pupilSize = irisSize * 0.4
+    if eye.emotion == "ASSUSTADO" then pupilSize = irisSize * 0.6 end
+    if eye.emotion == "BRAVO" then pupilSize = irisSize * 0.3 end
+    
+    drawEllipse(irisX, irisY, pupilSize, pupilSize, colors.black)
+
+    -- Reflexo nos olhos (maior e mais visível)
+    drawEllipse(irisX - 3, irisY - 3, 3, 3, colors.white)
+end
+
+--= LOOP PRINCIPAL =--
+local lastTime = os.epoch("utc")
+while true do
+    local currentTime = os.epoch("utc")
+    local dt = (currentTime - lastTime) / 1000
+    lastTime = currentTime
+
+    -- Atualizar estado
+    eye.timer = eye.timer - 1
+    if eye.timer <= 0 then
+        eye.emotion = weightedRandom({
+            CALMO = 50,
+            TRISTE = 15,
+            CHORANDO = 10,
+            ASSUSTADO = 15,
+            BRAVO = 10
+        })
+        eye.timer = math.random(
+            EMOTIONS[eye.emotion].duration[1],
+            EMOTIONS[eye.emotion].duration[2]
+        )
+    end
+
+    -- Atualizar sistemas
+    updateTears(dt)
+
+    -- Desenhar
+    mon.setBackgroundColor(colors.black)
+    mon.clear()
+
+    drawEye()
+    drawTears()
+
+    sleep(0.05)  -- Mantém 20 FPS
+end
