@@ -1,0 +1,476 @@
+--= OLHO EMOCIONAL ULTRA REALISTA =--
+-- Versão 3.3 - Completa e Funcionalidades Adicionadas
+
+--= CONFIGURAÇÃO INICIAL =--
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Monitores não encontrados!")
+    return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local centerX, centerY = math.floor(w/2), math.floor(h/2)
+
+-- Raio da Esclera (aproximado, para referência no código)
+local SCLERA_RX_BASE = 20
+local SCLERA_RY_BASE = 15
+
+--= FUNÇÕES ÚTEIS =--
+local function lerp(a, b, t) return a + (b - a) * t end
+local function weightedRandom(weights)
+    local total = 0
+    for _, w_val in pairs(weights) do total = total + w_val end
+    local r = math.random() * total -- math.random() retorna [0,1), então multiplicamos
+    local sum = 0
+    for k, w_val in pairs(weights) do
+        sum = sum + w_val
+        if r <= sum then return k end
+    end
+    return next(weights) -- Fallback para o primeiro item se algo der errado
+end
+
+--= SISTEMA DE EMOÇÕES =--
+local EMOTIONS = {
+    CALMO = {
+        blink = 0.003, -- Probabilidade base de iniciar piscada por segundo
+        duration = {min=300, max=500}, -- Ticks de jogo (20 ticks/seg)
+        iris = {color="rainbow", size=3.5},
+        sclera = {color=colors.white, redness=0},
+        effects = {bg="none", particles="none"}
+    },
+    TRISTE = {
+        blink = 0.01,
+        duration = {min=250, max=350},
+        iris = {color=colors.blue, size=4.2},
+        sclera = {color=colors.lightGray, redness=0.1}, -- Esclera um pouco mais escura/acinzentada
+        effects = {bg="fog", particles="tears", intensity=0.7}
+    },
+    CHORANDO = {
+        blink = 0.005,
+        duration = {min=500, max=700},
+        iris = {color=colors.blue, size=4.5},
+        sclera = {color=colors.lightBlue, redness=0.3},
+        effects = {bg="storm", particles="waterfall", intensity=1.0}
+    },
+    EMBRIAGADO = {
+        blink = 0.02,
+        duration = {min=400, max=600},
+        iris = {color="swirling", size=3.8},
+        sclera = {color=colors.pink, redness=0.6}, -- Esclera avermelhada/rosada
+        effects = {bg="spiral", particles="floaters", intensity=0.8}
+    }
+}
+
+--= ESTADO DO OLHO =--
+local eye = {
+    emotion = "CALMO",
+    timer = 300, -- Em ticks de jogo
+    blink = {
+        progress = 0, -- 0 (aberto) a 1 (fechado)
+        target = 0,   -- 0 (parado), 1 (fechando), -1 (abrindo)
+        timer_closed = 0 -- Tempo que permanece fechado
+    },
+    look = {
+        x = 0, y = 0, -- Posição atual da íris/pupila relativa ao centro da esclera
+        targetX = 0, targetY = 0,
+        timer = 0 -- Timer para definir novo alvo
+    },
+    particles = {
+        tears = {},
+        floaters = {}
+    },
+    physics = {sway=0, wobble=0}, -- Não utilizado atualmente
+    waterLevel = 0, -- Não utilizado atualmente
+    storm_flash_timer = 0 -- Para o efeito de raio na tempestade
+}
+
+--= INICIALIZAÇÃO DE PARTÍCULAS =--
+for i = 1, 150 do
+    eye.particles.tears[i] = {
+        active = false, x = 0, y = 0,
+        size = 1, speed = 1, color = colors.blue, life = 0
+    }
+end
+for i = 1, 80 do
+    eye.particles.floaters[i] = {
+        x = math.random(-w, w), y = math.random(-h, h),
+        color = ({colors.green, colors.yellow, colors.pink})[math.random(3)],
+        size = math.random(1, 3), speed = math.random(20, 80)/100
+    }
+end
+
+--= FUNÇÕES DE DESENHO =--
+local function drawPixel(x, y, color)
+    mon.setBackgroundColor(color)
+    mon.setCursorPos(math.floor(centerX + x), math.floor(centerY + y))
+    mon.write(" ")
+end
+
+local function drawEllipse(offX, offY, rx, ry, color)
+    for dy = -ry, ry do
+        for dx = -rx, rx do
+            if rx > 0 and ry > 0 then -- Evitar divisão por zero se raio for 0
+                if (dx*dx)/(rx*rx) + (dy*dy)/(ry*ry) <= 1 then
+                    drawPixel(offX + dx, offY + dy, color)
+                end
+            elseif rx == 0 and ry == 0 and dx == 0 and dy == 0 then -- Desenhar um ponto se raios forem 0
+                 drawPixel(offX + dx, offY + dy, color)
+            end
+        end
+    end
+end
+
+--= ATUALIZAÇÃO DE ESTADO DO OLHO =--
+local function updateBlink(dt)
+    local e_config = EMOTIONS[eye.emotion]
+    local blink_speed = 7 -- Quão rápido a piscada acontece (unidades de progresso por segundo)
+
+    if eye.blink.target == 1 then -- Fechando
+        eye.blink.progress = math.min(1, eye.blink.progress + blink_speed * dt)
+        if eye.blink.progress >= 1 then
+            eye.blink.target = -1 -- Começar a abrir
+            eye.blink.timer_closed = math.random(5, 15) / 100 -- Duração do olho fechado (0.05 a 0.15s)
+        end
+    elseif eye.blink.target == -1 then -- Abrindo
+        if eye.blink.timer_closed > 0 then
+            eye.blink.timer_closed = eye.blink.timer_closed - dt
+        else
+            eye.blink.progress = math.max(0, eye.blink.progress - blink_speed * dt)
+            if eye.blink.progress <= 0 then
+                eye.blink.target = 0 -- Totalmente aberto
+            end
+        end
+    else -- Olho aberto, verificar se deve piscar
+        -- Probabilidade de piscar (e_config.blink é chance/segundo)
+        if math.random() < e_config.blink * dt then
+            eye.blink.target = 1
+        end
+    end
+end
+
+local function updateLook(dt)
+    local look_speed = 1.5 -- Quão rápido o olho se move para o alvo
+    local currentIrisSize = EMOTIONS[eye.emotion].iris.size or 4
+
+    eye.look.x = lerp(eye.look.x, eye.look.targetX, look_speed * dt)
+    eye.look.y = lerp(eye.look.y, eye.look.targetY, look_speed * dt)
+
+    eye.look.timer = eye.look.timer - dt
+    if eye.look.timer <= 0 then
+        -- Limitar para a íris não sair da esclera.
+        local max_look_offset_x = SCLERA_RX_BASE - currentIrisSize - 2 -- -2 de margem
+        local max_look_offset_y = SCLERA_RY_BASE - currentIrisSize - 2 -- -2 de margem
+
+        eye.look.targetX = math.random() * (max_look_offset_x * 2) - max_look_offset_x
+        eye.look.targetY = math.random() * (max_look_offset_y * 2) - max_look_offset_y
+        eye.look.timer = math.random(15, 50) / 10 -- Novo alvo a cada 1.5 a 5 segundos
+    end
+end
+
+--= SISTEMA DE LÁGRIMAS =--
+local function updateTears(dt)
+    local e_config = EMOTIONS[eye.emotion]
+    if not (e_config.effects.particles:find("tear") or e_config.effects.particles:find("waterfall")) then return end
+
+    local intensity = e_config.effects.intensity or 0.5
+    if e_config.effects.particles == "waterfall" then
+        intensity = math.min(1.0, intensity * 1.8) -- Aumenta intensidade para cachoeira, mas não mais que 1.0 (ou o valor máximo do lerp)
+    end
+    
+    -- Chance base de uma partícula inativa spawnar por segundo
+    local baseSpawnChancePerParticle = lerp(0.05, 0.3, intensity) 
+
+    for _, tear in ipairs(eye.particles.tears) do
+        if tear.active then
+            tear.y = tear.y + tear.speed * 60 * dt -- speed é unidades por segundo
+            tear.life = tear.life - dt
+            if tear.y > centerY + SCLERA_RY_BASE + 5 or tear.life <= 0 then -- Cai abaixo do olho
+                tear.active = false
+            end
+        elseif math.random() < baseSpawnChancePerParticle * dt then
+            tear.active = true
+            tear.x = math.random(math.floor(-SCLERA_RX_BASE*0.8), math.floor(SCLERA_RX_BASE*0.8)) -- Origem da lágrima na largura do olho
+            tear.y = math.random(-5, 5) - SCLERA_RY_BASE*0.3 -- Origem da lágrima perto da parte inferior do olho
+            tear.size = math.random(1, 4)
+            tear.speed = (math.random(15, 35)/10) * (0.5 + intensity*0.5) -- Velocidade em unidades/segundo
+            tear.life = math.random(2, 5) * (0.5 + intensity*0.5)
+            tear.color = ({colors.blue, colors.lightBlue, colors.cyan})[math.random(3)]
+        end
+    end
+end
+
+local function drawTears()
+    local e_config = EMOTIONS[eye.emotion]
+    if not (e_config.effects.particles:find("tear") or e_config.effects.particles:find("waterfall")) then return end
+
+    for _, tear in ipairs(eye.particles.tears) do
+        if tear.active then
+            local tearDrawX = eye.look.x + tear.x -- Lágrimas acompanham um pouco o olhar horizontal
+            local tearDrawY = eye.look.y + tear.y -- e vertical
+
+            -- Lágrima principal
+            drawPixel(tearDrawX, tearDrawY, tear.color)
+
+            -- Cauda da lágrima (pequena)
+            for i = 1, math.min(tear.size, 2) do -- Cauda mais curta
+                drawPixel(tearDrawX, tearDrawY - i, tear.color)
+            end
+
+            -- Reflexo sutil
+            if math.random() < 0.2 then
+                drawPixel(tearDrawX + math.random(-1,1), tearDrawY, colors.white)
+            end
+        end
+    end
+
+    -- Olho marejado (brilho na parte inferior do olho)
+    if e_config.effects.intensity > 0.5 then
+        local waterShineY = SCLERA_RY_BASE * 0.7 + eye.look.y
+        for x_offset = -SCLERA_RX_BASE * 0.7, SCLERA_RX_BASE * 0.7 do
+            if math.random() < 0.03 * e_config.effects.intensity then
+                drawPixel(x_offset + eye.look.x, waterShineY + math.random(-1,1), colors.lightBlue)
+            end
+        end
+    end
+end
+
+--= EFEITOS DE EMBRIAGUEZ (FLOATERS) =--
+local function updateFloaters(dt) -- Renomeado de updateFloat
+    if eye.emotion ~= "EMBRIAGADO" then return end
+
+    for _, floater in ipairs(eye.particles.floaters) do
+        floater.x = floater.x + (math.random() * 1 - 0.5) * 20 * dt -- Movimento lateral suave
+        floater.y = floater.y + floater.speed * 30 * dt -- Movimento vertical
+
+        if floater.y > h/2 + 10 then
+            floater.y = -h/2 - 10
+            floater.x = math.random(-w/2, w/2)
+        elseif floater.y < -h/2 -10 then
+             floater.y = h/2 + 10
+             floater.x = math.random(-w/2, w/2)
+        end
+        if floater.x > w/2 + 10 then floater.x = -w/2 -10
+        elseif floater.x < -w/2 -10 then floater.x = w/2 + 10
+        end
+    end
+end
+
+local function drawFloaters() -- Renomeado de drawFloat
+    if eye.emotion ~= "EMBRIAGADO" then return end
+
+    for _, floater in ipairs(eye.particles.floaters) do
+        -- Floaters são desenhados em coordenadas absolutas do monitor, não relativas ao olho
+        mon.setBackgroundColor(floater.color)
+        mon.setCursorPos(math.floor(centerX + floater.x), math.floor(centerY + floater.y))
+        -- Desenhar floater simples de 1x1 ou usar drawEllipse para tamanhos maiores
+        if floater.size == 1 then
+             mon.write(" ")
+        else
+            -- Para desenhar elipses aqui, a função drawEllipse precisaria
+            -- de centerX, centerY como parâmetros ou usar coordenadas absolutas.
+            -- Por simplicidade, faremos um pixel por enquanto, ou ajuste drawEllipse.
+            mon.write(" ")
+            -- drawEllipse(floater.x, floater.y, floater.size/2, floater.size/2, floater.color) -- Se drawEllipse usar coords globais
+        end
+    end
+end
+
+
+--= EFEITO ESPIRAL (BACKGROUND) =--
+local spiral = {angle=0}
+local function drawSpiralBackground(dt)
+    spiral.angle = (spiral.angle + 0.5 * dt) % (math.pi*2) -- Velocidade controlada por dt
+    local layers = 5
+    local maxRadius = math.max(w,h)/2 + 10
+
+    for l = 1, layers do
+        local radius = maxRadius - l * (maxRadius/layers/2) -- Espaçamento das camadas
+        local steps = math.floor(radius * 1.5) -- Mais steps para suavidade
+        local color = ({colors.purple, colors.magenta, colors.pink})[ (l % 3) + 1]
+
+        for i = 0, steps do
+            local a = spiral.angle * (l % 2 == 0 and 1 or -1) + (i/steps)*math.pi*2 -- Algumas camadas giram ao contrário
+            local x = math.floor(math.cos(a)*radius)
+            local y = math.floor(math.sin(a)*radius * 0.7) -- Elipse mais achatada para preencher tela
+
+            if i % (math.max(1, math.floor(3+l*0.5))) == 0 then -- Densidade dos pontos
+                drawPixel(x, y, color)
+            end
+        end
+    end
+end
+
+--= EFEITO NÉVOA (BACKGROUND) =--
+local function drawFogBackground()
+    for _ = 1, 30 do -- Número de "partículas" de névoa por frame
+        local x_abs = math.random(1, w)
+        local y_abs = math.random(1, h)
+        mon.setCursorPos(x_abs, y_abs)
+        mon.setBackgroundColor(colors.gray) -- Névoa cinza
+        mon.write(" ")
+    end
+end
+
+--= EFEITO TEMPESTADE (BACKGROUND) =--
+local function handleStormBackground(dt)
+    -- Fundo base já é darkGray ou similar no loop principal
+    if eye.storm_flash_timer > 0 then
+        mon.setBackgroundColor(colors.white)
+        mon.clear() -- Flash branco
+        eye.storm_flash_timer = eye.storm_flash_timer - dt
+    elseif math.random() < 0.1 * dt then -- Chance de iniciar um flash (ex: 10% por segundo)
+         eye.storm_flash_timer = math.random(5,15)/100 -- Duração do flash (0.05 a 0.15s)
+    end
+    -- Poderia adicionar partículas de "chuva" aqui, similares às lágrimas mas por toda a tela
+end
+
+--= FUNÇÃO PRINCIPAL DE DESENHO DO OLHO =--
+local function drawMainEye(emotionData, dt_arg) -- dt_arg para animações de cor
+    local e_iris_cfg = emotionData.iris
+    local e_sclera_cfg = emotionData.sclera
+
+    -- 1. Esclera (parte branca)
+    local scleraColor = e_sclera_cfg.color
+    -- A esclera inteira é desenhada com o centro em (eye.look.x, eye.look.y)
+    -- NÃO, a esclera é fixa, a íris se move DENTRO dela.
+    -- Então, o centro da esclera é (0,0) relativo a centerX, centerY.
+    -- E o olho.look.x/y é o DESLOCAMENTO da íris/pupila.
+    drawEllipse(0, 0, SCLERA_RX_BASE, SCLERA_RY_BASE, scleraColor)
+
+    -- Desenhar "vasos" vermelhos se houver vermelhidão
+    if e_sclera_cfg.redness > 0 then
+        local num_vessels = math.floor(e_sclera_cfg.redness * 50) -- Mais vasos com mais vermelhidão
+        for _ = 1, num_vessels do
+            local angle = math.random() * math.pi * 2
+            local dist_start = e_iris_cfg.size * 1.2 -- Começa perto da íris
+            local dist_end = SCLERA_RX_BASE * 0.8 + math.random() * (SCLERA_RX_BASE*0.2) -- Vai até perto da borda
+            
+            local x1 = eye.look.x + math.cos(angle) * dist_start
+            local y1 = eye.look.y + math.sin(angle) * dist_start
+            local x2 = math.cos(angle + math.random(-0.3,0.3)*e_sclera_cfg.redness) * dist_end -- Pequena variação no ângulo
+            local y2 = math.sin(angle + math.random(-0.3,0.3)*e_sclera_cfg.redness) * dist_end * (SCLERA_RY_BASE/SCLERA_RX_BASE) -- Ajusta para proporção da elipse
+
+            -- Desenhar linha simples (Bresenham seria melhor, mas mais complexo)
+            local steps = math.max(1, math.floor(math.max(math.abs(x2-x1), math.abs(y2-y1))))
+            for j=0, steps do
+                local t = j/steps
+                drawPixel(lerp(x1,x2,t), lerp(y1,y2,t), colors.red)
+            end
+        end
+    end
+
+    -- 2. Íris (parte colorida)
+    local irisColor = e_iris_cfg.color
+    if irisColor == "rainbow" then
+        local rainbowPalette = {colors.red, colors.orange, colors.yellow, colors.green, colors.blue, colors.purple, colors.magenta}
+        irisColor = rainbowPalette[math.floor(os.clock()*1.5 % #rainbowPalette) + 1] -- Muda de cor ~1.5x por segundo
+    elseif irisColor == "swirling" then
+        local swirlPalette = {colors.cyan, colors.purple, colors.lime, colors.pink}
+        irisColor = swirlPalette[math.floor(os.clock()*5 % #swirlPalette) + 1] -- Muda de cor ~5x por segundo
+    end
+    local irisRadius = e_iris_cfg.size
+    -- A íris se move com eye.look.x/y
+    drawEllipse(eye.look.x, eye.look.y, irisRadius, irisRadius, irisColor)
+
+    -- 3. Pupila (preta, no centro da íris)
+    local pupilRadius = math.max(1, irisRadius * 0.4) -- Pupila ~40% do tamanho da íris
+    drawEllipse(eye.look.x, eye.look.y, pupilRadius, pupilRadius, colors.black)
+    
+    -- 4. Reflexo na pupila/íris (pequeno brilho)
+    local reflexX = eye.look.x + irisRadius * 0.3
+    local reflexY = eye.look.y - irisRadius * 0.3
+    drawEllipse(reflexX, reflexY, 1, 1, colors.white) -- Brilho de 2x2 (raio 1)
+
+    -- 5. Pálpebra (para piscar)
+    if eye.blink.progress > 0 then
+        local eyelidColor = colors.brown -- Cor da pálpebra
+        local coverAmountVertical = SCLERA_RY_BASE * eye.blink.progress -- Quanto da altura vertical é coberta
+
+        -- Pálpebra superior: cobre de -SCLERA_RY_BASE até -SCLERA_RY_BASE + coverAmountVertical*2
+        -- O *2 é porque SCLERA_RY_BASE é metade da altura. Queremos cobrir até o centro ou mais.
+        local startY = -SCLERA_RY_BASE
+        local endY = -SCLERA_RY_BASE + (coverAmountVertical * 2)
+
+        for y_offset = math.floor(startY), math.ceil(endY) do
+            -- Calcula a largura da elipse da esclera nessa altura y_offset para a pálpebra ter formato curvo
+            -- (x/a)^2 + (y/b)^2 = 1  => x^2 = a^2 * (1 - (y/b)^2) => x = a * sqrt(1 - (y/b)^2)
+            if 1 - (y_offset/SCLERA_RY_BASE)^2 >= 0 then -- Evitar sqrt de negativo
+                local eyelid_rx_at_y = SCLERA_RX_BASE * math.sqrt(1 - (y_offset/SCLERA_RY_BASE)^2)
+                for x_offset = -math.floor(eyelid_rx_at_y), math.floor(eyelid_rx_at_y) do
+                    drawPixel(x_offset, y_offset, eyelidColor)
+                end
+            end
+        end
+    end
+end
+
+
+--= LOOP PRINCIPAL =--
+local lastTime = os.clock() -- Usar os.clock() para dt em segundos
+eye.look.timer = 0 -- Forçar primeiro alvo do olhar
+
+while true do
+    local currentTime = os.clock()
+    local dt = currentTime - lastTime
+    lastTime = currentTime
+
+    -- EVENTOS (não implementado, mas aqui seria o local para input do teclado/mouse/rede)
+    -- Ex: local event, p1, p2 = os.pullEvent()
+
+    -- ATUALIZAR ESTADO
+    eye.timer = eye.timer - (dt * 20) -- Convertendo dt (segundos) para ticks (assumindo 20 ticks/seg)
+    if eye.timer <= 0 then
+        eye.emotion = weightedRandom({
+            CALMO=60, TRISTE=15, CHORANDO=10, EMBRIAGADO=15
+        })
+        local new_emotion_cfg = EMOTIONS[eye.emotion]
+        eye.timer = math.random(new_emotion_cfg.duration.min, new_emotion_cfg.duration.max)
+        -- Resetar alguns estados ao mudar de emoção, se necessário
+        eye.storm_flash_timer = 0 -- Resetar flash da tempestade
+    end
+
+    updateBlink(dt)
+    updateLook(dt)
+    updateTears(dt)
+    updateFloaters(dt)
+
+    -- DESENHAR
+    local currentEmotionData = EMOTIONS[eye.emotion]
+
+    -- 1. Definir cor de fundo base e limpar
+    if currentEmotionData.effects.bg == "storm" then
+        mon.setBackgroundColor(colors.darkGray)
+    else
+        mon.setBackgroundColor(colors.black)
+    end
+    mon.clear()
+
+    -- 2. Desenhar efeitos de BG sobrepostos (que não limpam tudo)
+    if currentEmotionData.effects.bg == "spiral" then
+        drawSpiralBackground(dt)
+    elseif currentEmotionData.effects.bg == "fog" then
+        drawFogBackground()
+    end
+    
+    -- Efeito de tempestade (raios) sobrepõe outros BGs se ativo (mas só é ativo com bg="storm")
+    if currentEmotionData.effects.bg == "storm" then
+        handleStormBackground(dt)
+        if eye.storm_flash_timer > 0 then -- Se houve flash, não desenhar mais nada neste frame
+            sleep(0.05) -- Manter o sleep para o loop
+            goto continue_loop -- Pula o resto do desenho para o flash ser visível
+        end
+    end
+
+    -- 3. Desenhar o olho principal
+    drawMainEye(currentEmotionData, dt)
+
+    -- 4. Desenhar partículas sobre o olho (ou que podem sobrepor)
+    drawTears()
+    drawFloaters() -- Desenha em coordenadas globais, pode sobrepor tudo
+
+    -- 5. Sleep para controlar FPS
+    sleep(math.max(0, 0.05 - (os.clock() - currentTime))) -- Tenta manter ~20 FPS, ajusta sleep pelo tempo de processamento
+
+    ::continue_loop::
+end
