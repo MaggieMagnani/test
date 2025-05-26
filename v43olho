@@ -1,0 +1,271 @@
+--= OLHO EMOCIONAL REFINADO =--
+-- Versão 4.1 - Sem piscar e com tamanho ajustado
+
+--= CONFIGURAÇÃO INICIAL =--
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Monitor não encontrado!")
+    return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local centerX, centerY = math.floor(w / 2), math.floor(h / 2)
+
+-- Ajuste de tamanho (1.3x maior que o original)
+local SIZE_FACTOR = 1.3
+
+--= FUNÇÕES ÚTEIS =--
+local function lerp(a, b, t)
+    return a + (b - a) * t
+end
+
+local function weightedRandom(weights)
+    local total = 0
+    for _, w in pairs(weights) do
+        total = total + w
+    end
+    local r = math.random() * total
+    local sum = 0
+    for k, w in pairs(weights) do
+        sum = sum + w
+        if r <= sum then
+            return k
+        end
+    end
+end
+
+--= SISTEMA DE EMOÇÕES =--
+local EMOTIONS = {
+    CALMO = {
+        duration = {300, 500},
+        iris = {color = "rainbow", size = math.floor(5 * SIZE_FACTOR)},
+        sclera = {color = colors.white, redness = 0},
+        effects = {particles = "none"}
+    },
+    TRISTE = {
+        duration = {300, 400},
+        iris = {color = colors.blue, size = math.floor(5 * SIZE_FACTOR)},
+        sclera = {color = colors.lightBlue, redness = 0.1},
+        effects = {particles = "tears", intensity = 0.7}
+    },
+    CHORANDO = {
+        duration = {400, 500},
+        iris = {color = colors.blue, size = math.floor(5 * SIZE_FACTOR)},
+        sclera = {color = colors.lightBlue, redness = 0.3},
+        effects = {particles = "tears", intensity = 1.0}
+    },
+    ASSUSTADO = {
+        duration = {300, 400},
+        iris = {color = colors.lightGray, size = math.floor(6 * SIZE_FACTOR)}, -- Pupila dilatada
+        sclera = {color = colors.white, redness = 0.2},
+        effects = {particles = "none"}
+    },
+    BRAVO = {
+        duration = {300, 400},
+        iris = {color = colors.red, size = math.floor(4 * SIZE_FACTOR)}, -- Pupila contraída
+        sclera = {color = colors.red, redness = 0.5},
+        effects = {particles = "none"}
+    }
+}
+
+--= ESTADO DO OLHO =--
+local eye = {
+    emotion = "CALMO",
+    timer = 300,
+    look = {x = 0, y = 0, targetX = 0, targetY = 0},
+    particles = {
+        tears = {}
+    }
+}
+
+--= INICIALIZAÇÃO DE PARTÍCULAS =--
+for i = 1, 120 do
+    eye.particles.tears[i] = {
+        active = false,
+        x = 0,
+        y = 0,
+        size = 1,
+        speed = 1,
+        color = colors.blue,
+        life = 0
+    }
+end
+
+--= FUNÇÕES DE DESENHO =--
+local function drawPixel(x, y, color)
+    local drawX = centerX + x
+    local drawY = centerY + y
+    if drawX >= 1 and drawX <= w and drawY >= 1 and drawY <= h then
+        mon.setBackgroundColor(color)
+        mon.setCursorPos(drawX, drawY)
+        mon.write(" ")
+    end
+end
+
+local function drawEllipse(x, y, rx, ry, color)
+    local rx2 = rx * rx
+    local ry2 = ry * ry
+    for dy = -ry, ry do
+        local dxLimit = math.sqrt(rx2 * (1 - (dy*dy)/ry2)
+        for dx = -dxLimit, dxLimit do
+            drawPixel(x + math.floor(dx), y + math.floor(dy), color)
+        end
+    end
+end
+
+--= SISTEMA DE LÁGRIMAS =--
+local function updateTears(dt)
+    local e = EMOTIONS[eye.emotion]
+    if not e.effects.particles or e.effects.particles ~= "tears" then
+        return
+    end
+
+    local intensity = e.effects.intensity or 0.5
+    local spawnRate = lerp(0.5, 1.5, intensity) * dt
+
+    for _, tear in ipairs(eye.particles.tears) do
+        if tear.active then
+            tear.y = tear.y + tear.speed * 60 * dt
+            tear.life = tear.life - dt
+            if tear.y > h / 2 or tear.life <= 0 then
+                tear.active = false
+            end
+        elseif math.random() < spawnRate then
+            tear.active = true
+            tear.x = math.random(-30, 30)
+            tear.y = -15 - math.random(5)
+            tear.size = math.random(1, 3)
+            tear.speed = math.random(15, 35) / 10 * intensity
+            tear.life = math.random(2, 5)
+            tear.color = ({colors.blue, colors.lightBlue, colors.cyan})[math.random(3)]
+        end
+    end
+end
+
+local function drawTears()
+    local e = EMOTIONS[eye.emotion]
+    if not e.effects.particles or e.effects.particles ~= "tears" then
+        return
+    end
+
+    for _, tear in ipairs(eye.particles.tears) do
+        if tear.active then
+            -- Lágrima principal
+            drawPixel(tear.x, tear.y, tear.color)
+            
+            -- Cauda da lágrima
+            for i = 1, tear.size do
+                drawPixel(tear.x, tear.y - i, tear.color)
+            end
+            
+            -- Reflexo
+            if math.random() < 0.3 then
+                drawPixel(tear.x + math.random(-1,1), tear.y, colors.white)
+            end
+        end
+    end
+    
+    -- Olho marejado quando chorando muito
+    if e.effects.intensity > 0.7 then
+        for i = 1, math.floor(e.effects.intensity * 15) do
+            drawPixel(math.random(-25, 25), math.random(-10, 0), colors.lightBlue)
+        end
+    end
+end
+
+--= DESENHO DO OLHO =--
+local function drawEye()
+    local e = EMOTIONS[eye.emotion]
+    
+    -- Tamanhos ajustados
+    local scleraW, scleraH = math.floor(26 * SIZE_FACTOR), math.floor(13 * SIZE_FACTOR)
+    local irisSize = e.iris.size
+
+    -- Desenhar esclera (parte branca do olho)
+    drawEllipse(0, 0, scleraW, scleraH, e.sclera.color)
+
+    -- Adicionar vermelhidão
+    if e.sclera.redness > 0 then
+        for i = 1, math.floor(e.sclera.redness * 100) do
+            drawPixel(
+                math.random(-scleraW, scleraW),
+                math.random(-scleraH, scleraH),
+                colors.red
+            )
+        end
+    end
+
+    -- Movimentar íris naturalmente
+    if math.random() < 0.05 then
+        eye.look.targetX = math.random(-8, 8)
+        eye.look.targetY = math.random(-5, 5)
+    end
+    eye.look.x = lerp(eye.look.x, eye.look.targetX, 0.1)
+    eye.look.y = lerp(eye.look.y, eye.look.targetY, 0.1)
+
+    local irisX = math.floor(eye.look.x)
+    local irisY = math.floor(eye.look.y)
+
+    -- Cor da íris
+    local irisColor = e.iris.color
+    if irisColor == "rainbow" then
+        local time = os.epoch() / 1000
+        local hue = (time % 10) / 10
+        if hue < 0.17 then irisColor = colors.red
+        elseif hue < 0.33 then irisColor = colors.orange
+        elseif hue < 0.5 then irisColor = colors.yellow
+        elseif hue < 0.67 then irisColor = colors.green
+        elseif hue < 0.83 then irisColor = colors.blue
+        else irisColor = colors.purple end
+    end
+
+    -- Íris
+    drawEllipse(irisX, irisY, irisSize, irisSize, irisColor)
+
+    -- Pupila (tamanho varia com emoção)
+    local pupilSize = irisSize * 0.4
+    if eye.emotion == "ASSUSTADO" then pupilSize = irisSize * 0.6 end
+    if eye.emotion == "BRAVO" then pupilSize = irisSize * 0.3 end
+    
+    drawEllipse(irisX, irisY, pupilSize, pupilSize, colors.black)
+
+    -- Reflexo nos olhos
+    drawEllipse(irisX - 2, irisY - 2, 2, 2, colors.white)
+end
+
+--= LOOP PRINCIPAL =--
+local lastTime = os.epoch("utc")
+while true do
+    local currentTime = os.epoch("utc")
+    local dt = (currentTime - lastTime) / 1000
+    lastTime = currentTime
+
+    -- Atualizar estado
+    eye.timer = eye.timer - 1
+    if eye.timer <= 0 then
+        eye.emotion = weightedRandom({
+            CALMO = 50,
+            TRISTE = 15,
+            CHORANDO = 10,
+            ASSUSTADO = 15,
+            BRAVO = 10
+        })
+        eye.timer = math.random(
+            EMOTIONS[eye.emotion].duration[1],
+            EMOTIONS[eye.emotion].duration[2]
+        )
+    end
+
+    -- Atualizar sistemas
+    updateTears(dt)
+
+    -- Desenhar
+    mon.setBackgroundColor(colors.black)
+    mon.clear()
+
+    drawEye()
+    drawTears()
+
+    sleep(0.05)  -- ~20 FPS
+end
