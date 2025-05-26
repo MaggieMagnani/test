@@ -1,4 +1,4 @@
---= OLHO SIMPLES - V4.0 (Recomeço) =--
+--= OLHO PSICODÉLICO PARA BALADA - V4.1 =--
 
 --= CONFIGURAÇÃO INICIAL =--
 local mon = peripheral.find("monitor")
@@ -11,56 +11,76 @@ mon.setTextScale(0.5)
 local w, h = mon.getSize()
 local centerX, centerY = math.floor(w/2), math.floor(h/2)
 
--- TAMANHO FIXO E PEQUENO PARA TESTE INICIAL
-local SCLERA_RX = 12 -- Raio X da Esclera
-local SCLERA_RY = 8  -- Raio Y da Esclera
-local IRIS_RADIUS_FACTOR = 0.45 -- Íris é 45% do raio da esclera (usaremos SCLERA_RX como base)
-local PUPIL_RADIUS_FACTOR = 0.20 -- Pupila é 20% do raio da esclera
+--= CÁLCULO ADAPTATIVO DO TAMANHO DO OLHO =--
+-- O olho tentará ocupar esta porcentagem da menor dimensão útil do monitor (do centro à borda)
+local FILL_FACTOR = 0.85 -- Olho ocupa 85% do espaço útil
+local DESIRED_ASPECT_RATIO = 4/3 -- Largura / Altura (ex: 4:3). Ajuste se quiser um olho mais redondo ou mais largo.
+local MARGIN = 2 -- Margem de pixels das bordas do monitor
 
-print("Monitor: " .. w .. "x" .. h)
-print("Centro: " .. centerX .. "," .. centerY)
-print("Olho RX: " .. SCLERA_RX .. ", RY: " .. SCLERA_RY)
--- os.sleep(2) -- Para ver os prints
+-- 1. Calcular RY (raio vertical) máximo que cabe do centro para cima/baixo
+local max_ry_possible = centerY - MARGIN
+if max_ry_possible < 1 then max_ry_possible = 1 end -- Mínimo para evitar erro
+local SCLERA_RY = math.floor(max_ry_possible * FILL_FACTOR)
+if SCLERA_RY < 5 then SCLERA_RY = 5 end -- Um tamanho mínimo visível
+
+-- 2. Calcular RX (raio horizontal) baseado no RY e na proporção desejada
+local SCLERA_RX = math.floor(SCLERA_RY * DESIRED_ASPECT_RATIO)
+
+-- 3. Limitar RX se ele for mais largo que o espaço disponível do centro para a lateral
+local max_rx_possible = centerX - MARGIN
+if max_rx_possible < 1 then max_rx_possible = 1 end
+if SCLERA_RX > max_rx_possible then
+    SCLERA_RX = max_rx_possible
+    -- Reajustar RY para manter a proporção se RX foi limitado (para não achatar demais)
+    SCLERA_RY = math.floor(SCLERA_RX / DESIRED_ASPECT_RATIO)
+    if SCLERA_RY < 5 then SCLERA_RY = 5 end
+end
+
+print("Monitor: " .. w .. "x" .. h .. " | Centro: " .. centerX .. "," .. centerY)
+print("Olho Calculado RX: " .. SCLERA_RX .. ", RY: " .. SCLERA_RY)
+-- os.sleep(3) -- Descomente para ver os valores
+
+-- Fatores de tamanho para íris e pupila, relativos ao SCLERA_RX
+local BASE_IRIS_RADIUS_FACTOR = 0.50 -- Íris um pouco maior em relação à esclera
+local BASE_PUPIL_RADIUS_FACTOR = 0.22
 
 --= ESTADO DO OLHO =--
 local eye = {
     look = {
-        x = 0, y = 0, -- Posição atual da íris/pupila (deslocamento do centro)
-        targetX = 0, targetY = 0,
-        timer = 0 -- Timer para definir novo alvo de olhar
+        x = 0, y = 0, targetX = 0, targetY = 0,
+        timer = 0
     },
     iris_color_timer = 0,
-    current_iris_color_index = 1
+    current_iris_color_index = 1,
+    iris_pulse_timer = 0,
+    pupil_pulse_timer = 0
 }
 
+-- Cores mais vibrantes para a balada
 local IRIS_COLORS = {
-    colors.blue, colors.green, colors.yellow, colors.orange, colors.red, colors.purple, colors.magenta
+    colors.red, colors.magenta, colors.blue, colors.cyan, colors.lime, colors.yellow, colors.orange, colors.pink
 }
 
 --= FUNÇÕES ÚTEIS =--
 local function lerp(a, b, t) return a + (b - a) * t end
 
---= FUNÇÕES DE DESENHO =--
+--= FUNÇÕES DE DESENHO (mesmas da v4.0) =--
 local function drawPixel(x, y, color)
     local drawPosX = math.floor(centerX + x)
     local drawPosY = math.floor(centerY + y)
-
-    -- Verificação para não desenhar fora da tela
     if drawPosX >= 1 and drawPosX <= w and drawPosY >= 1 and drawPosY <= h then
         mon.setBackgroundColor(color)
         mon.setCursorPos(drawPosX, drawPosY)
         mon.write(" ")
-    -- else
-        -- Se quiser depurar pixels cortados:
-        -- print("Pixel cortado em: " .. drawPosX .. ", " .. drawPosY)
     end
 end
 
 local function drawEllipse(offX, offY, rx, ry, color)
-    if rx <= 0 or ry <= 0 then return end -- Não desenha se raio for zero ou negativo
+    if rx <= 0 or ry <= 0 then return end
+    rx = math.max(0.5, rx) -- Garantir que rx e ry sejam pelo menos 0.5 para desenhar um pixel se for muito pequeno
+    ry = math.max(0.5, ry)
     for dy_loop = -ry, ry do
         for dx_loop = -rx, rx do
-            -- Fórmula da elipse: (x/rx)^2 + (y/ry)^2 <= 1
             if (dx_loop*dx_loop)/(rx*rx) + (dy_loop*dy_loop)/(ry*ry) <= 1 then
                 drawPixel(offX + dx_loop, offY + dy_loop, color)
             end
@@ -70,19 +90,16 @@ end
 
 --= ATUALIZAÇÃO DE ESTADO =--
 local function updateLook(dt)
-    local look_speed = 1.5 -- Velocidade do movimento do olhar
-    local iris_size_current = SCLERA_RX * IRIS_RADIUS_FACTOR -- Tamanho da íris atual
+    local look_speed = 2.0 -- Movimento do olhar um pouco mais rápido
+    local current_iris_rx = SCLERA_RX * (BASE_IRIS_RADIUS_FACTOR + math.sin(eye.iris_pulse_timer * 5) * 0.05) -- Usa o RX da íris para o cálculo
 
-    -- Mover o olhar atual (eye.look.x, eye.look.y) em direção ao alvo
     eye.look.x = lerp(eye.look.x, eye.look.targetX, look_speed * dt)
     eye.look.y = lerp(eye.look.y, eye.look.targetY, look_speed * dt)
 
     eye.look.timer = eye.look.timer - dt
     if eye.look.timer <= 0 then
-        -- Definir novo alvo para o olhar
-        -- Limitar o alvo para que a íris não saia da esclera
-        local max_offset_x = SCLERA_RX - iris_size_current - 1 -- -1 de margem
-        local max_offset_y = SCLERA_RY - (iris_size_current * (SCLERA_RY/SCLERA_RX) ) - 1 -- -1 de margem (íris proporcional)
+        local max_offset_x = SCLERA_RX - current_iris_rx - MARGIN -- MARGIN aqui para não colar na borda da esclera
+        local max_offset_y = SCLERA_RY - (current_iris_rx * (SCLERA_RY/SCLERA_RX)) - MARGIN
 
         if max_offset_x < 0 then max_offset_x = 0 end
         if max_offset_y < 0 then max_offset_y = 0 end
@@ -90,59 +107,83 @@ local function updateLook(dt)
         eye.look.targetX = (math.random() * (max_offset_x * 2)) - max_offset_x
         eye.look.targetY = (math.random() * (max_offset_y * 2)) - max_offset_y
         
-        eye.look.timer = math.random(15, 50) / 10 -- Novo alvo a cada 1.5 a 5 segundos
+        eye.look.timer = math.random(8, 30) / 10 -- Novo alvo mais frequente: 0.8 a 3 segundos
     end
 end
 
-local function updateIrisColor(dt)
+local function updateIris(dt)
+    -- Mudança de Cor
     eye.iris_color_timer = eye.iris_color_timer - dt
     if eye.iris_color_timer <= 0 then
         eye.current_iris_color_index = (eye.current_iris_color_index % #IRIS_COLORS) + 1
-        eye.iris_color_timer = 0.5 -- Mudar de cor a cada 0.5 segundos
+        eye.iris_color_timer = 0.20 -- Mudar de cor bem rápido (5x por segundo)
     end
+
+    -- Pulso do Tamanho
+    eye.iris_pulse_timer = eye.iris_pulse_timer + dt
 end
+
+local function updatePupil(dt)
+    -- Pulso do Tamanho
+    eye.pupil_pulse_timer = eye.pupil_pulse_timer + dt
+end
+
 
 --= FUNÇÃO PRINCIPAL DE DESENHO DO OLHO =--
 local function drawMainEye()
-    -- 1. Esclera (parte branca)
-    -- Desenhada no centro (0,0 relativo ao centerX, centerY)
+    -- 1. Esclera (parte branca, ou talvez uma cor escura para balada?)
+    -- Por enquanto, branca para contraste. Pode mudar depois.
     drawEllipse(0, 0, SCLERA_RX, SCLERA_RY, colors.white)
 
     -- 2. Íris (parte colorida)
-    local iris_rx = SCLERA_RX * IRIS_RADIUS_FACTOR
-    local iris_ry = SCLERA_RY * IRIS_RADIUS_FACTOR -- Mantendo a proporção da esclera para a íris
+    -- Efeito pulsante no raio da íris
+    local iris_pulse_amplitude = 0.06 -- Quão maior/menor a íris fica
+    local iris_pulse_speed = 4     -- Velocidade da pulsação (radianos/segundo)
+    local dynamic_iris_factor = BASE_IRIS_RADIUS_FACTOR + math.sin(eye.iris_pulse_timer * iris_pulse_speed) * iris_pulse_amplitude
+    
+    local iris_rx = SCLERA_RX * dynamic_iris_factor
+    local iris_ry = SCLERA_RY * dynamic_iris_factor -- Mantém proporção da esclera para a íris
+
     local iris_color = IRIS_COLORS[eye.current_iris_color_index]
-    -- Desenhada com o deslocamento do olhar (eye.look.x, eye.look.y)
     drawEllipse(eye.look.x, eye.look.y, iris_rx, iris_ry, iris_color)
 
-    -- 3. Pupila (preta, no centro da íris)
-    local pupil_rx = SCLERA_RX * PUPIL_RADIUS_FACTOR
-    local pupil_ry = SCLERA_RY * PUPIL_RADIUS_FACTOR
-    -- Desenhada com o mesmo deslocamento do olhar
+    -- 3. Pupila (preta)
+    -- Efeito pulsante na pupila, um pouco dessincronizado da íris
+    local pupil_pulse_amplitude = 0.04
+    local pupil_pulse_speed = 4.8 -- Um pouco mais rápida ou diferente
+    local dynamic_pupil_factor = BASE_PUPIL_RADIUS_FACTOR + math.sin(eye.pupil_pulse_timer * pupil_pulse_speed + math.pi/3) * pupil_pulse_amplitude
+    
+    -- Garantir que a pupila não seja maior que a íris e tenha um tamanho mínimo
+    dynamic_pupil_factor = math.max(0.05, math.min(dynamic_pupil_factor, dynamic_iris_factor * 0.7)) 
+
+    local pupil_rx = SCLERA_RX * dynamic_pupil_factor
+    local pupil_ry = SCLERA_RY * dynamic_pupil_factor
     drawEllipse(eye.look.x, eye.look.y, pupil_rx, pupil_ry, colors.black)
 end
 
 --= LOOP PRINCIPAL =--
 local lastTime = os.clock()
-eye.look.timer = 0 -- Forçar primeiro alvo do olhar
-eye.iris_color_timer = 0 -- Forçar primeira cor da íris
+eye.look.timer = 0
+eye.iris_color_timer = 0
+eye.iris_pulse_timer = os.clock() -- Inicia com o tempo atual para seno não ser sempre zero
+eye.pupil_pulse_timer = os.clock() + 0.5 -- Pequeno defasamento inicial para a pupila
 
 while true do
     local currentTime = os.clock()
     local dt = currentTime - lastTime
-    if dt <= 0 then dt = 0.001 end -- Evitar dt zero ou negativo
+    if dt <= 0 then dt = 0.001 end
     lastTime = currentTime
 
     -- ATUALIZAR ESTADO
     updateLook(dt)
-    updateIrisColor(dt)
+    updateIris(dt)
+    updatePupil(dt)
 
     -- DESENHAR
-    mon.setBackgroundColor(colors.black)
+    mon.setBackgroundColor(colors.black) -- Fundo preto para destacar o olho
     mon.clear()
 
     drawMainEye()
     
-    -- SLEEP para controlar FPS e dar tempo para outras coisas no CC
-    sleep(math.max(0, 0.05 - (os.clock() - currentTime))) -- Tenta manter ~20 FPS
+    sleep(math.max(0, 0.04 - (os.clock() - currentTime))) -- Tentar manter ~25 FPS
 end
