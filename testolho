@@ -1,0 +1,148 @@
+--= OLHO SIMPLES - V4.0 (Recomeço) =--
+
+--= CONFIGURAÇÃO INICIAL =--
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Monitores não encontrados!")
+    return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local centerX, centerY = math.floor(w/2), math.floor(h/2)
+
+-- TAMANHO FIXO E PEQUENO PARA TESTE INICIAL
+local SCLERA_RX = 12 -- Raio X da Esclera
+local SCLERA_RY = 8  -- Raio Y da Esclera
+local IRIS_RADIUS_FACTOR = 0.45 -- Íris é 45% do raio da esclera (usaremos SCLERA_RX como base)
+local PUPIL_RADIUS_FACTOR = 0.20 -- Pupila é 20% do raio da esclera
+
+print("Monitor: " .. w .. "x" .. h)
+print("Centro: " .. centerX .. "," .. centerY)
+print("Olho RX: " .. SCLERA_RX .. ", RY: " .. SCLERA_RY)
+-- os.sleep(2) -- Para ver os prints
+
+--= ESTADO DO OLHO =--
+local eye = {
+    look = {
+        x = 0, y = 0, -- Posição atual da íris/pupila (deslocamento do centro)
+        targetX = 0, targetY = 0,
+        timer = 0 -- Timer para definir novo alvo de olhar
+    },
+    iris_color_timer = 0,
+    current_iris_color_index = 1
+}
+
+local IRIS_COLORS = {
+    colors.blue, colors.green, colors.yellow, colors.orange, colors.red, colors.purple, colors.magenta
+}
+
+--= FUNÇÕES ÚTEIS =--
+local function lerp(a, b, t) return a + (b - a) * t end
+
+--= FUNÇÕES DE DESENHO =--
+local function drawPixel(x, y, color)
+    local drawPosX = math.floor(centerX + x)
+    local drawPosY = math.floor(centerY + y)
+
+    -- Verificação para não desenhar fora da tela
+    if drawPosX >= 1 and drawPosX <= w and drawPosY >= 1 and drawPosY <= h then
+        mon.setBackgroundColor(color)
+        mon.setCursorPos(drawPosX, drawPosY)
+        mon.write(" ")
+    -- else
+        -- Se quiser depurar pixels cortados:
+        -- print("Pixel cortado em: " .. drawPosX .. ", " .. drawPosY)
+    end
+end
+
+local function drawEllipse(offX, offY, rx, ry, color)
+    if rx <= 0 or ry <= 0 then return end -- Não desenha se raio for zero ou negativo
+    for dy_loop = -ry, ry do
+        for dx_loop = -rx, rx do
+            -- Fórmula da elipse: (x/rx)^2 + (y/ry)^2 <= 1
+            if (dx_loop*dx_loop)/(rx*rx) + (dy_loop*dy_loop)/(ry*ry) <= 1 then
+                drawPixel(offX + dx_loop, offY + dy_loop, color)
+            end
+        end
+    end
+end
+
+--= ATUALIZAÇÃO DE ESTADO =--
+local function updateLook(dt)
+    local look_speed = 1.5 -- Velocidade do movimento do olhar
+    local iris_size_current = SCLERA_RX * IRIS_RADIUS_FACTOR -- Tamanho da íris atual
+
+    -- Mover o olhar atual (eye.look.x, eye.look.y) em direção ao alvo
+    eye.look.x = lerp(eye.look.x, eye.look.targetX, look_speed * dt)
+    eye.look.y = lerp(eye.look.y, eye.look.targetY, look_speed * dt)
+
+    eye.look.timer = eye.look.timer - dt
+    if eye.look.timer <= 0 then
+        -- Definir novo alvo para o olhar
+        -- Limitar o alvo para que a íris não saia da esclera
+        local max_offset_x = SCLERA_RX - iris_size_current - 1 -- -1 de margem
+        local max_offset_y = SCLERA_RY - (iris_size_current * (SCLERA_RY/SCLERA_RX) ) - 1 -- -1 de margem (íris proporcional)
+
+        if max_offset_x < 0 then max_offset_x = 0 end
+        if max_offset_y < 0 then max_offset_y = 0 end
+
+        eye.look.targetX = (math.random() * (max_offset_x * 2)) - max_offset_x
+        eye.look.targetY = (math.random() * (max_offset_y * 2)) - max_offset_y
+        
+        eye.look.timer = math.random(15, 50) / 10 -- Novo alvo a cada 1.5 a 5 segundos
+    end
+end
+
+local function updateIrisColor(dt)
+    eye.iris_color_timer = eye.iris_color_timer - dt
+    if eye.iris_color_timer <= 0 then
+        eye.current_iris_color_index = (eye.current_iris_color_index % #IRIS_COLORS) + 1
+        eye.iris_color_timer = 0.5 -- Mudar de cor a cada 0.5 segundos
+    end
+end
+
+--= FUNÇÃO PRINCIPAL DE DESENHO DO OLHO =--
+local function drawMainEye()
+    -- 1. Esclera (parte branca)
+    -- Desenhada no centro (0,0 relativo ao centerX, centerY)
+    drawEllipse(0, 0, SCLERA_RX, SCLERA_RY, colors.white)
+
+    -- 2. Íris (parte colorida)
+    local iris_rx = SCLERA_RX * IRIS_RADIUS_FACTOR
+    local iris_ry = SCLERA_RY * IRIS_RADIUS_FACTOR -- Mantendo a proporção da esclera para a íris
+    local iris_color = IRIS_COLORS[eye.current_iris_color_index]
+    -- Desenhada com o deslocamento do olhar (eye.look.x, eye.look.y)
+    drawEllipse(eye.look.x, eye.look.y, iris_rx, iris_ry, iris_color)
+
+    -- 3. Pupila (preta, no centro da íris)
+    local pupil_rx = SCLERA_RX * PUPIL_RADIUS_FACTOR
+    local pupil_ry = SCLERA_RY * PUPIL_RADIUS_FACTOR
+    -- Desenhada com o mesmo deslocamento do olhar
+    drawEllipse(eye.look.x, eye.look.y, pupil_rx, pupil_ry, colors.black)
+end
+
+--= LOOP PRINCIPAL =--
+local lastTime = os.clock()
+eye.look.timer = 0 -- Forçar primeiro alvo do olhar
+eye.iris_color_timer = 0 -- Forçar primeira cor da íris
+
+while true do
+    local currentTime = os.clock()
+    local dt = currentTime - lastTime
+    if dt <= 0 then dt = 0.001 end -- Evitar dt zero ou negativo
+    lastTime = currentTime
+
+    -- ATUALIZAR ESTADO
+    updateLook(dt)
+    updateIrisColor(dt)
+
+    -- DESENHAR
+    mon.setBackgroundColor(colors.black)
+    mon.clear()
+
+    drawMainEye()
+    
+    -- SLEEP para controlar FPS e dar tempo para outras coisas no CC
+    sleep(math.max(0, 0.05 - (os.clock() - currentTime))) -- Tenta manter ~20 FPS
+end
