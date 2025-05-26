@@ -107,7 +107,7 @@ local function drawEllipse(x, y, rx, ry, color)
     local rx2 = rx * rx
     local ry2 = ry * ry
     for dy = -ry, ry do
-        local dxLimit = math.sqrt(rx2 * (1 - (dy*dy)/ry2)
+        local dxLimit = math.sqrt(rx2 * (1 - (dy*dy)/ry2))
         for dx = -dxLimit, dxLimit do
             drawPixel(x + math.floor(dx), y + math.floor(dy), color)
         end
