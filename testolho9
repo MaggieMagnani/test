@@ -1,0 +1,187 @@
+--= OLHO PSICODÉLICO TOTAL - V5.0 (Recomeço Focado) =--
+
+--= CONFIGURAÇÃO INICIAL =--
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Monitores não encontrados!")
+    return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local centerX, centerY = math.floor(w/2), math.floor(h/2)
+
+-- TAMANHO FIXO E MODERADO PARA ESTABILIDADE INICIAL
+-- (Baseado no tamanho original que geralmente funcionava bem)
+local SCLERA_RX = 20
+local SCLERA_RY = 15
+local IRIS_BASE_RADIUS_FACTOR = 0.55  -- Íris é 55% do raio X da esclera
+local PUPIL_BASE_RADIUS_FACTOR = 0.25 -- Pupila é 25% do raio X da esclera
+
+print("MONITOR: " .. w .. "x" .. h .. " | CENTRO: " .. centerX .. "," .. centerY)
+print("OLHO FIXO RX: " .. SCLERA_RX .. ", RY: " .. SCLERA_RY)
+-- os.sleep(2) -- Descomente para verificar os valores impressos
+
+--= CORES E ESTADO =--
+local PSYCHEDELIC_COLORS = {
+    colors.red, colors.magenta, colors.orange, colors.blue,
+    colors.yellow, colors.cyan, colors.lime, colors.pink, colors.purple
+}
+
+local eye = {
+    look = {
+        x = 0, y = 0, -- Deslocamento da íris/pupila do centro da esclera
+        targetX = 0, targetY = 0,
+        timer = 0 -- Timer para novo alvo de olhar
+    },
+    -- Estado para animação da íris
+    iris_swirl_angle = 0,
+    iris_color_offset = 0, -- Para ciclar as cores nos anéis
+    -- Estado para animação da pupila
+    pupil_pulse_time = 0
+}
+
+--= FUNÇÕES ÚTEIS =--
+local function lerp(a, b, t) return a + (b - a) * t end
+
+--= FUNÇÕES DE DESENHO =--
+local function drawPixel(x, y, color)
+    local drawPosX = math.floor(centerX + x)
+    local drawPosY = math.floor(centerY + y)
+
+    if drawPosX >= 1 and drawPosX <= w and drawPosY >= 1 and drawPosY <= h then
+        mon.setBackgroundColor(color)
+        mon.setCursorPos(drawPosX, drawPosY)
+        mon.write(" ")
+    end
+end
+
+local function drawEllipse(offX, offY, rx, ry, color, fill)
+    if fill == nil then fill = true end -- Padrão é preenchido
+    if rx <= 0 or ry <= 0 then return end
+    rx = math.max(0.5, rx) -- Mínimo para desenhar um pixel
+    ry = math.max(0.5, ry)
+
+    if fill then
+        for dy_loop = -ry, ry do
+            for dx_loop = -rx, rx do
+                if (dx_loop*dx_loop)/(rx*rx) + (dy_loop*dy_loop)/(ry*ry) <= 1 then
+                    drawPixel(offX + dx_loop, offY + dy_loop, color)
+                end
+            end
+        end
+    else -- Desenhar apenas a borda (para anéis da íris)
+        local step_angle = math.pi / (math.max(1, rx + ry) * 1.5) -- Mais pontos para borda suave
+        for angle = 0, math.pi * 2, step_angle do
+            local px = offX + rx * math.cos(angle)
+            local py = offY + ry * math.sin(angle)
+            drawPixel(px, py, color)
+        end
+    end
+end
+
+--= ATUALIZAÇÃO DE ESTADO =--
+local function updateLook(dt)
+    local look_speed = 1.8 -- Velocidade do movimento do olhar
+    local iris_current_rx = SCLERA_RX * IRIS_BASE_RADIUS_FACTOR -- Usar o RX base para cálculo de limite
+
+    eye.look.x = lerp(eye.look.x, eye.look.targetX, look_speed * dt)
+    eye.look.y = lerp(eye.look.y, eye.look.targetY, look_speed * dt)
+
+    eye.look.timer = eye.look.timer - dt
+    if eye.look.timer <= 0 then
+        local margin = 1 -- Pequena margem interna na esclera
+        local max_offset_x = SCLERA_RX - iris_current_rx - margin
+        local max_offset_y = SCLERA_RY - (iris_current_rx * (SCLERA_RY / SCLERA_RX)) - margin
+
+        if max_offset_x < 0 then max_offset_x = 0 end
+        if max_offset_y < 0 then max_offset_y = 0 end
+
+        eye.look.targetX = (math.random() * (max_offset_x * 2)) - max_offset_x
+        eye.look.targetY = (math.random() * (max_offset_y * 2)) - max_offset_y
+        
+        eye.look.timer = math.random(10, 35) / 10 -- Novo alvo: 1.0 a 3.5 segundos
+    end
+end
+
+local function updateIrisPsychedelic(dt)
+    -- Efeito de "swirl" e mudança de cor dos anéis
+    local swirl_speed = math.pi * 1.0 -- Velocidade de rotação do "swirl" (radianos/segundo)
+    local color_cycle_speed = 2.5   -- Quantas vezes o offset de cor cicla por segundo
+
+    eye.iris_swirl_angle = (eye.iris_swirl_angle + swirl_speed * dt) % (math.pi * 2)
+    eye.iris_color_offset = (eye.iris_color_offset + color_cycle_speed * dt)
+end
+
+local function updatePupilPsychedelic(dt)
+    -- Pulsação do tamanho da pupila
+    local pulse_speed = math.pi * 1.8 -- Velocidade da pulsação (radianos/segundo)
+    eye.pupil_pulse_time = (eye.pupil_pulse_time + pulse_speed * dt) % (math.pi * 2)
+end
+
+--= FUNÇÃO PRINCIPAL DE DESENHO DO OLHO =--
+local function drawMainEyePsychedelic()
+    -- 1. Esclera
+    -- Para um visual de "balada", uma esclera escura pode ser interessante,
+    -- ou branca para alto contraste. Vamos manter branca por enquanto.
+    drawEllipse(0, 0, SCLERA_RX, SCLERA_RY, colors.white)
+
+    -- 2. Íris Psicodélica (com anéis coloridos e efeito swirl)
+    local num_iris_rings = 5 -- Quantidade de anéis coloridos na íris
+    local max_iris_rx = SCLERA_RX * IRIS_BASE_RADIUS_FACTOR
+    local max_iris_ry = SCLERA_RY * IRIS_BASE_RADIUS_FACTOR
+
+    for i = num_iris_rings, 1, -1 do -- Desenhar de fora para dentro
+        local ring_progress = i / num_iris_rings
+        local current_ring_rx = max_iris_rx * ring_progress
+        local current_ring_ry = max_iris_ry * ring_progress
+        
+        -- O ângulo de swirl afeta a cor ou a posição, vamos usar para a cor
+        local color_index_float = (i + eye.iris_color_offset + math.sin(eye.iris_swirl_angle + ring_progress * math.pi) * 0.5)
+        local color_index = (math.floor(color_index_float -1) % #PSYCHEDELIC_COLORS) + 1
+        local ring_color = PSYCHEDELIC_COLORS[color_index]
+
+        -- Se for o anel mais interno (i=1), preenche. Senão, desenha a borda.
+        -- Isso cria um efeito de anéis sobrepostos.
+        -- Para um efeito de anéis distintos, sempre desenharia a borda (false)
+        -- e o último anel (i=1) seria um círculo preenchido menor.
+        -- Vamos tentar preenchendo cada anel para um visual mais sólido.
+        drawEllipse(eye.look.x, eye.look.y, current_ring_rx, current_ring_ry, ring_color, true)
+    end
+
+    -- 3. Pupila Pulsante
+    local pupil_amplitude_factor = 0.15 -- Pupila varia 15% do seu tamanho base
+    local dynamic_pupil_factor = PUPIL_BASE_RADIUS_FACTOR * (1 + math.sin(eye.pupil_pulse_time) * pupil_amplitude_factor)
+    
+    -- Garantir que a pupila não seja maior que a íris e tenha um tamanho mínimo
+    dynamic_pupil_factor = math.max(0.08, math.min(dynamic_pupil_factor, IRIS_BASE_RADIUS_FACTOR * 0.6))
+
+    local pupil_rx = SCLERA_RX * dynamic_pupil_factor
+    local pupil_ry = SCLERA_RY * dynamic_pupil_factor
+    drawEllipse(eye.look.x, eye.look.y, pupil_rx, pupil_ry, colors.black)
+end
+
+--= LOOP PRINCIPAL =--
+local lastTime = os.clock()
+eye.look.timer = 0
+eye.pupil_pulse_time = os.clock() -- Iniciar com o tempo atual
+
+while true do
+    local currentTime = os.clock()
+    local dt = currentTime - lastTime
+    if dt <= 0 then dt = 0.001 end
+    lastTime = currentTime
+
+    -- ATUALIZAR ESTADO
+    updateLook(dt)
+    updateIrisPsychedelic(dt)
+    updatePupilPsychedelic(dt)
+
+    -- DESENHAR
+    mon.setBackgroundColor(colors.black)
+    mon.clear()
+
+    drawMainEyePsychedelic()
+    
+    sleep(math.max(0, 0.04 - (os.clock() - currentTime))) -- Tenta manter ~25 FPS
+end
