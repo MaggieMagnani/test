@@ -1,0 +1,131 @@
+-- olho_avancado.lua
+
+local mon
+for _, nome in ipairs(peripheral.getNames()) do
+  if peripheral.getType(nome) == "monitor" then
+    mon = peripheral.wrap(nome)
+    break
+  end
+end
+
+if not mon then
+  print("Nenhum monitor encontrado!")
+  return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+
+local cx, cy = math.floor(w / 2), math.floor(h / 2)
+
+-- Cores da íris
+local cores = {
+  colors.red, colors.orange, colors.yellow,
+  colors.green, colors.blue, colors.purple,
+  colors.pink, colors.cyan, colors.magenta, colors.lime
+}
+
+-- Direções da pupila
+local direcoes = {
+  {x = 0, y = 0},
+  {x = -1, y = 0}, {x = 1, y = 0},
+  {x = 0, y = -1}, {x = 0, y = 1},
+  {x = -1, y = -1}, {x = 1, y = -1},
+  {x = -1, y = 1}, {x = 1, y = 1}
+}
+
+-- Desenha o olho detalhado
+local function desenharOlho(pupilaX, pupilaY, cor)
+  mon.setBackgroundColor(colors.black)
+  mon.clear()
+
+  -- Esclera (parte branca)
+  for y = -4, 4 do
+    for x = -6, 6 do
+      if (x * x) / 36 + (y * y) / 16 <= 1 then
+        mon.setCursorPos(cx + x, cy + y)
+        mon.setBackgroundColor(colors.white)
+        mon.write(" ")
+      end
+    end
+  end
+
+  -- Íris (colorida)
+  for y = -2, 2 do
+    for x = -3, 3 do
+      if (x * x) / 9 + (y * y) / 4 <= 1 then
+        mon.setCursorPos(cx + x, cy + y)
+        mon.setBackgroundColor(cor)
+        mon.write(" ")
+      end
+    end
+  end
+
+  -- Pupila (preta)
+  mon.setCursorPos(cx + pupilaX, cy + pupilaY)
+  mon.setBackgroundColor(colors.black)
+  mon.write(" ")
+end
+
+-- Efeito de piscar
+local function piscar()
+  for i = 1, 3 do
+    for y = -4, 4 do
+      for x = -6, 6 do
+        if (x * x) / 36 + (y * y) / 16 <= 1 then
+          mon.setCursorPos(cx + x, cy + y)
+          mon.setBackgroundColor(colors.black)
+          mon.write(" ")
+        end
+      end
+    end
+    sleep(0.05)
+  end
+end
+
+-- Efeito de "halo" psicodélico ao redor
+local function halo()
+  for i = 1, 5 do
+    local cor = cores[math.random(#cores)]
+    for x = -7, 7 do
+      mon.setCursorPos(cx + x, cy - 5)
+      mon.setBackgroundColor(cor)
+      mon.write(" ")
+      mon.setCursorPos(cx + x, cy + 5)
+      mon.write(" ")
+    end
+    sleep(0.05)
+  end
+end
+
+-- Explosão visual (blocos aleatórios piscam)
+local function explosao()
+  for i = 1, 15 do
+    local x = math.random(1, w)
+    local y = math.random(1, h)
+    local cor = cores[math.random(#cores)]
+    mon.setCursorPos(x, y)
+    mon.setBackgroundColor(cor)
+    mon.write(" ")
+  end
+  sleep(0.1)
+end
+
+-- Loop principal
+while true do
+  local pupila = direcoes[math.random(#direcoes)]
+  local cor = cores[math.random(#cores)]
+
+  desenharOlho(pupila.x, pupila.y, cor)
+
+  local chance = math.random()
+  if chance < 0.1 then
+    piscar()
+  elseif chance < 0.2 then
+    halo()
+  elseif chance < 0.25 then
+    explosao()
+  end
+
+  sleep(math.random(4, 10) / 10)
+end
