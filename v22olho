@@ -348,11 +348,6 @@ while true do
     mon.setBackgroundColor(colors.black)
     mon.clear()
     
-    -- Atualizar sistemas
-    updateTears(deltaTime)
-    updateFloat(deltaTime)
-    eye.effects.bg:update(deltaTime)
-    
     -- Desenhar efeitos de fundo
     eye.effects.bg:draw()
     
