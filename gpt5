@@ -1,0 +1,97 @@
+--= CONFIGURAÇÃO INICIAL =--
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Nenhum monitor encontrado!")
+    return
+end
+
+mon.setTextScale(0.5)
+local w, h = mon.getSize()
+local centerX, centerY = math.floor(w / 2), math.floor(h / 2)
+
+--= PALETA PSICODÉLICA =--
+local COLORS = {
+    colors.purple,
+    colors.magenta,
+    colors.pink,
+    colors.blue,
+    colors.cyan,
+    colors.red
+}
+
+--= TAMANHO DO OLHO BASEADO NO MONITOR 7x6 BLOCOS (49x36 pixels) =--
+local EYE_RADIUS_X = 20
+local EYE_RADIUS_Y = 16
+local IRIS_RADIUS = 7
+local PUPIL_RADIUS = 3
+
+--= ESTADO =--
+local eye = {
+    irisColor = colors.magenta,
+    nextColor = colors.purple,
+    progress = 0,
+    lookX = 0,
+    lookY = 0,
+    targetX = 0,
+    targetY = 0,
+    moveTimer = 0
+}
+
+--= FUNÇÕES DE DESENHO =--
+local function drawPixel(x, y, color)
+    if x >= 1 and x <= w and y >= 1 and y <= h then
+        mon.setCursorPos(x, y)
+        mon.setBackgroundColor(color)
+        mon.write(" ")
+    end
+end
+
+local function drawEllipse(cx, cy, rx, ry, color)
+    for y = -ry, ry do
+        local dx = math.floor(math.sqrt((1 - (y * y) / (ry * ry)) * rx * rx))
+        for x = -dx, dx do
+            drawPixel(cx + x, cy + y, color)
+        end
+    end
+end
+
+--= ANIMAÇÕES =--
+local function updateColor(dt)
+    eye.progress = eye.progress + dt * 0.5
+    if eye.progress >= 1 then
+        eye.progress = 0
+        eye.irisColor = eye.nextColor
+        repeat
+            eye.nextColor = COLORS[math.random(#COLORS)]
+        until eye.nextColor ~= eye.irisColor
+    end
+end
+
+local function updateMovement(dt)
+    eye.moveTimer = eye.moveTimer + dt
+    if eye.moveTimer >= 0.4 then
+        eye.moveTimer = 0
+        eye.targetX = math.random(-5, 5)
+        eye.targetY = math.random(-3, 3)
+    end
+    eye.lookX = eye.lookX + (eye.targetX - eye.lookX) * 0.2
+    eye.lookY = eye.lookY + (eye.targetY - eye.lookY) * 0.2
+end
+
+--= LOOP PRINCIPAL =--
+while true do
+    mon.setBackgroundColor(colors.black)
+    mon.clear()
+    
+    local time = os.epoch("utc") / 1000
+    updateColor(0.05)
+    updateMovement(0.05)
+    
+    local cx, cy = centerX, centerY
+
+    drawEllipse(cx, cy, EYE_RADIUS_X, EYE_RADIUS_Y, colors.white)
+    drawEllipse(cx + math.floor(eye.lookX), cy + math.floor(eye.lookY), IRIS_RADIUS, IRIS_RADIUS, eye.irisColor)
+    drawEllipse(cx + math.floor(eye.lookX), cy + math.floor(eye.lookY), PUPIL_RADIUS, PUPIL_RADIUS, colors.black)
+    
+    sleep(0.05)
+end
