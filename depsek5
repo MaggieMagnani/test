@@ -7,7 +7,7 @@ end
 
 mon.setTextScale(0.5)
 local w, h = mon.getSize()
-local centerX, centerY = math.floor(w / 2), math.floor(h / 2)
+local centerX, centerY = math.floor(w / 2), math.floor(h / 2) - 5  -- AJUSTE: sobe o olho pra evitar corte
 
 --= PALETA DE CORES PSICODÉLICAS =--
 local COLORS = {
@@ -38,9 +38,13 @@ local eye = {
 
 --= FUNÇÃO DE DESENHO SIMPLES =--
 local function drawPixel(x, y, color)
-    mon.setBackgroundColor(color)
-    mon.setCursorPos(centerX + x, centerY + y)
-    mon.write(" ")
+    local px = centerX + x
+    local py = centerY + y
+    if px >= 1 and px <= w and py >= 1 and py <= h then
+        mon.setBackgroundColor(color)
+        mon.setCursorPos(px, py)
+        mon.write(" ")
+    end
 end
 
 --= FUNÇÃO DE DESENHO DE ELIPSE OTIMIZADA =--
@@ -48,7 +52,7 @@ local function drawEllipse(x, y, rx, ry, color)
     local rx2 = rx * rx
     local ry2 = ry * ry
     for dy = -ry, ry do
-        local dxLimit = math.sqrt(rx2 * (1 - (dy*dy)/ry2))
+        local dxLimit = math.sqrt(rx2 * (1 - (dy * dy) / ry2))
         for dx = -dxLimit, dxLimit do
             drawPixel(math.floor(x + dx), math.floor(y + dy), color)
         end
@@ -58,17 +62,16 @@ end
 --= ATUALIZAÇÃO DE COR (SEM BLEND) =--
 local function updateColor(dt)
     eye.colorProgress = eye.colorProgress + dt * COLOR_CHANGE_SPEED
-    
+
     if eye.colorProgress >= 1 then
         eye.colorProgress = 0
         eye.currentColor = eye.nextColor
-        
-        -- Próxima cor aleatória, mas diferente da atual
+
         local newIndex
         repeat
             newIndex = math.random(#COLORS)
         until COLORS[newIndex] ~= eye.currentColor
-        
+
         eye.nextColor = COLORS[newIndex]
     end
 end
@@ -76,30 +79,25 @@ end
 --= MOVIMENTO RÁPIDO DA ÍRIS =--
 local function updateMovement(dt)
     eye.moveTimer = eye.moveTimer + dt
-    if eye.moveTimer >= 0.3 then  -- Muda direção frequentemente
+    if eye.moveTimer >= 0.3 then
         eye.moveTimer = 0
         eye.look.targetX = math.random(-12, 12)
         eye.look.targetY = math.random(-8, 8)
     end
-    
-    -- Movimento rápido e direto
+
     eye.look.x = eye.look.x + (eye.look.targetX - eye.look.x) * MOVE_SPEED
     eye.look.y = eye.look.y + (eye.look.targetY - eye.look.y) * MOVE_SPEED
 end
 
 --= DESENHO DO OLHO =--
 local function drawEye()
-    -- Esclera (parte branca do olho)
     drawEllipse(0, 0, EYE_WIDTH, EYE_HEIGHT, colors.white)
-    
-    -- Íris (cor atual ou próxima cor baseado no progresso)
+
     local irisColor = eye.colorProgress > 0.5 and eye.nextColor or eye.currentColor
     drawEllipse(eye.look.x, eye.look.y, IRIS_SIZE, IRIS_SIZE, irisColor)
-    
-    -- Pupila
+
     drawEllipse(eye.look.x, eye.look.y, PUPIL_SIZE, PUPIL_SIZE, colors.black)
-    
-    -- Reflexo destacado
+
     drawPixel(eye.look.x - 3, eye.look.y - 3, colors.white)
     drawPixel(eye.look.x - 2, eye.look.y - 4, colors.white)
 end
@@ -110,13 +108,13 @@ while true do
     local currentTime = os.epoch("utc")
     local dt = (currentTime - lastTime) / 1000
     lastTime = currentTime
-    
+
     mon.setBackgroundColor(colors.black)
     mon.clear()
-    
+
     updateColor(dt)
     updateMovement(dt)
     drawEye()
-    
-    sleep(0.05)  -- ~20 FPS
+
+    sleep(0.05)
 end
