@@ -17,12 +17,12 @@ local COLORS = {
 }
 
 --= CONFIGURAÇÕES =--
-local EYE_WIDTH = 30
-local EYE_HEIGHT = 18
-local IRIS_RADIUS = 8
+local EYE_WIDTH = 24     -- Diminuído de 30 → 24
+local EYE_HEIGHT = 14    -- Diminuído de 18 → 14
+local IRIS_RADIUS = 7
 local PUPIL_RADIUS = 3
-local MOVE_RADIUS_X = 10
-local MOVE_RADIUS_Y = 6
+local MOVE_RADIUS_X = 8
+local MOVE_RADIUS_Y = 5
 local COLOR_CHANGE_INTERVAL = 2
 local MOVE_CHANGE_INTERVAL = 0.4
 
