@@ -81,7 +81,7 @@ local function drawEye()
     -- Cor atual com transição suave
     local currentColor = COLORS[eye.colorIndex]
     local nextColor = COLORS[(eye.colorIndex % #COLORS) + 1]
-    local irisColor = colors.blend(currentColor, nextColor, eye.colorTimer)
+    local irisColor = colors(currentColor, nextColor, eye.colorTimer)
     
     -- Íris
     drawEllipse(eye.look.x, eye.look.y, IRIS_SIZE, IRIS_SIZE, irisColor)
