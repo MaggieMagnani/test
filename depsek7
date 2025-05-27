@@ -16,13 +16,13 @@ local COLORS = {
     colors.purple, colors.magenta, colors.pink
 }
 
---= CONFIGURAÇÕES AJUSTADAS =--
-local EYE_WIDTH = 20       -- Reduzido de 30 para 20
-local EYE_HEIGHT = 12      -- Reduzido de 18 para 12
-local IRIS_RADIUS = 6      -- Reduzido de 8 para 6
-local PUPIL_RADIUS = 2     -- Reduzido de 3 para 2
-local MOVE_RADIUS_X = 8    -- Reduzido de 10 para 8
-local MOVE_RADIUS_Y = 4    -- Reduzido de 6 para 4
+--= CONFIGURAÇÕES =--
+local EYE_WIDTH = 20       -- Largura do olho (ajustável)
+local EYE_HEIGHT = 12      -- Altura do olho (ajustável)
+local IRIS_RADIUS = 6      -- Raio da íris
+local PUPIL_RADIUS = 2     -- Raio da pupila
+local MOVE_RADIUS_X = 5    -- Movimento horizontal máximo (reduzido para evitar corte)
+local MOVE_RADIUS_Y = 3    -- Movimento vertical máximo (reduzido para evitar corte)
 local COLOR_CHANGE_INTERVAL = 2
 local MOVE_CHANGE_INTERVAL = 0.4
 
@@ -33,7 +33,7 @@ local targetX, targetY = 0, 0
 local eyeX, eyeY = 0, 0
 local lastMoveChange = os.clock()
 
---= FUNÇÕES AUXILIARES =--
+--= FUNÇÃO PARA DESENHAR PIXEL (COM LIMITE DE BORDAS) =--
 local function drawPixel(x, y, color)
     if x >= 1 and x <= w and y >= 1 and y <= h then
         mon.setCursorPos(x, y)
@@ -42,11 +42,16 @@ local function drawPixel(x, y, color)
     end
 end
 
+--= FUNÇÃO PARA DESENHAR ELIPSE (COM VERIFICAÇÃO DE BORDAS) =--
 local function drawEllipse(cx, cy, rx, ry, color)
-    for y = -ry, ry do
-        local lineWidth = math.floor(rx * math.sqrt(1 - (y*y)/(ry*ry)))
-        for x = -lineWidth, lineWidth do
-            drawPixel(centerX + cx + x, centerY + cy + y, color)
+    for dy = -ry, ry do
+        local lineWidth = math.floor(rx * math.sqrt(1 - (dy * dy) / (ry * ry)))
+        for dx = -lineWidth, lineWidth do
+            local px, py = centerX + cx + dx, centerY + cy + dy
+            -- Verifica se o pixel está dentro do monitor
+            if px >= 1 and px <= w and py >= 1 and py <= h then
+                drawPixel(px, py, color)
+            end
         end
     end
 end
@@ -66,19 +71,19 @@ while true do
         lastColorChange = os.clock()
     end
 
-    -- Movimento do olho
+    -- Movimento do olho (limitado para não sair da tela)
     if os.clock() - lastMoveChange > MOVE_CHANGE_INTERVAL then
         targetX = math.random(-MOVE_RADIUS_X, MOVE_RADIUS_X)
         targetY = math.random(-MOVE_RADIUS_Y, MOVE_RADIUS_Y)
         lastMoveChange = os.clock()
     end
 
-    -- Suaviza o movimento (interpolação linear)
+    -- Suaviza o movimento
     eyeX = eyeX + (targetX - eyeX) * 0.2
     eyeY = eyeY + (targetY - eyeY) * 0.2
 
-    -- Desenha o olho (com proporções ajustadas)
-    drawEllipse(0, 0, EYE_WIDTH, EYE_HEIGHT, colors.white)      -- Esclera
+    -- Desenha o olho (com checagem de bordas)
+    drawEllipse(0, 0, EYE_WIDTH, EYE_HEIGHT, colors.white)       -- Esclera
     drawEllipse(eyeX, eyeY, IRIS_RADIUS, IRIS_RADIUS, currentColor)  -- Íris
     drawEllipse(eyeX, eyeY, PUPIL_RADIUS, PUPIL_RADIUS, colors.black) -- Pupila
 
