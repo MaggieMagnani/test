@@ -1,0 +1,92 @@
+--= INICIALIZAÇÃO =--
+local mon = peripheral.find("monitor")
+if not mon then
+    print("Monitor não encontrado!")
+    return
+end
+
+mon.setTextScale(0.5)
+mon.setBackgroundColor(colors.black)
+mon.clear()
+
+local w, h = mon.getSize() -- w=8, h=6 (para seu monitor)
+local centerX, centerY = math.floor(w / 2), math.floor(h / 2)
+
+--= CORES =--
+local COLORS = {
+    colors.red, colors.blue, colors.green,
+    colors.yellow, colors.purple, colors.orange
+}
+
+--= CONFIGURAÇÕES PARA MONITOR 8x6 =--
+local EYE_WIDTH = 6          -- Largura máxima segura para o olho
+local EYE_HEIGHT = 4         -- Altura máxima segura
+local IRIS_RADIUS = 2        -- Íris menor para caber no olho
+local PUPIL_RADIUS = 1       -- Pupila mínima
+local MOVE_RADIUS_X = 1      -- Movimento horizontal limitado
+local MOVE_RADIUS_Y = 1      -- Movimento vertical limitado
+local COLOR_CHANGE_TIME = 3   -- Troca de cor a cada 3 segundos
+local MOVE_CHANGE_TIME = 0.5  -- Troca de direção a cada 0.5s
+
+--= ESTADO =--
+local currentColor = colors.blue
+local lastColorChange = os.clock()
+local targetX, targetY = 0, 0
+local eyeX, eyeY = 0, 0
+local lastMoveChange = os.clock()
+
+--= DESENHA UM PIXEL SE ESTIVER DENTRO DO MONITOR =--
+local function drawPixel(x, y, color)
+    if x >= 1 and x <= w and y >= 1 and y <= h then
+        mon.setCursorPos(x, y)
+        mon.setBackgroundColor(color)
+        mon.write(" ")
+    end
+end
+
+--= DESENHA UMA ELIPSE (CÍRCULO APERTADO) =--
+local function drawEllipse(cx, cy, rx, ry, color)
+    for dy = -ry, ry do
+        local lineWidth = math.floor(rx * math.sqrt(1 - (dy * dy) / (ry * ry)))
+        for dx = -lineWidth, lineWidth do
+            drawPixel(centerX + cx + dx, centerY + cy + dy, color)
+        end
+    end
+end
+
+--= LOOP PRINCIPAL =--
+while true do
+    mon.setBackgroundColor(colors.black)
+    mon.clear()
+
+    -- Troca de cor aleatória (sem repetir)
+    if os.clock() - lastColorChange > COLOR_CHANGE_TIME then
+        local newColor = COLORS[math.random(#COLORS)]
+        if newColor ~= currentColor then
+            currentColor = newColor
+        end
+        lastColorChange = os.clock()
+    end
+
+    -- Atualiza direção do olho (suavemente)
+    if os.clock() - lastMoveChange > MOVE_CHANGE_TIME then
+        targetX = math.random(-MOVE_RADIUS_X, MOVE_RADIUS_X)
+        targetY = math.random(-MOVE_RADIUS_Y, MOVE_RADIUS_Y)
+        lastMoveChange = os.clock()
+    end
+
+    -- Interpolação para movimento fluido
+    eyeX = eyeX + (targetX - eyeX) * 0.3
+    eyeY = eyeY + (targetY - eyeY) * 0.3
+
+    -- Desenha o olho
+    drawEllipse(0, 0, EYE_WIDTH, EYE_HEIGHT, colors.white)       -- Esclera (branca)
+    drawEllipse(eyeX, eyeY, IRIS_RADIUS, IRIS_RADIUS, currentColor) -- Íris (colorida)
+    drawEllipse(eyeX, eyeY, PUPIL_RADIUS, PUPIL_RADIUS, colors.black) -- Pupila (preta)
+
+    -- Reflexos (dois pixels brancos)
+    drawPixel(centerX + eyeX - 1, centerY + eyeY - 1, colors.white)
+    drawPixel(centerX + eyeX, centerY + eyeY - 1, colors.white)
+
+    sleep(0.1)
+end
