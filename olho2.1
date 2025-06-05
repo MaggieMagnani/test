@@ -205,7 +205,7 @@ local function setEmotion(newEmotion)
     eye.emotion = newEmotion
     eye.timer = settings.emotions[newEmotion].duration or 200
     eye.currentBgEffect = settings.bgEffects[settings.emotions[newEmotion].bgEffect or settings.bgEffects.none
-    if eye.currentBgEffect.update then
+     eye.currentBgEffect.update then
         eye.currentBgEffect:update()
     end
 end
